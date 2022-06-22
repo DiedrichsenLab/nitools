@@ -1,12 +1,15 @@
 """Nitools
 """
+import numpy as np
+import nibabel as nb
+
 def affine_transform(x1, x2, x3, M):
     """
     Returns affine transform of x
 
     Args:
         x1 (np-array):
-            X-coordinate of original
+            X-coordinate of original (any size)
         x2 (np-array):
             Y-coordinate of original
         x3 (np-array):
@@ -34,12 +37,12 @@ def affine_transform_mat(x, M):
 
     Args:
         x (np-array):
-            3xN array for original coordinates 
+            3xN array for original coordinates
         M (2d-array):
             4x4 transformation matrix
     Returns:
         y (np-array):
-            3xN array pof X-coordinate of transformed coordinaters 
+            3xN array pof X-coordinate of transformed coordinaters
     """
     y = M[0:3,0:3] @ x + M[0:3,3:]
     return (y)
@@ -74,7 +77,7 @@ def coords_to_linvidxs(coords,vol_def,mask=False):
     # map to 3xP matrix (P coordinates)
     ijk = mat[0:3,0:3] @ coords + mat[0:3,3:]
     ijk = np.rint(ijk).astype(int)
-    
+
     if ijk.ndim<=2:
         i = ijk[0]
         j = ijk[1]
@@ -84,18 +87,18 @@ def coords_to_linvidxs(coords,vol_def,mask=False):
         j = ijk[:,1]
         k = ijk[:,2]
 
-    # Now set the indices out of range to 
+    # Now set the indices out of range to
     good = (i>=0) & (i<vol_def.shape[0]) & (j>=0) & (j<vol_def.shape[1]) &  (k[2]>=0) & (k[2]<vol_def.shape[2])
-    
+
     linindx = np.ravel_multi_index((i,j,k),vol_def.shape,mode='clip')
 
     if mask:
         M=vol_def.get_fdata().ravel()
         good = good & (M[linindx]>0)
-    
+
     return linindx, good
 
-def sq_eucl_distances(coordA,coordB): 
+def sq_eucl_distances(coordA,coordB):
     D = coordA.reshape(3,-1,1)-coordB.reshape(3,1,-1)
     D = np.sum(D**2,axis=0)
     return D
@@ -119,7 +122,7 @@ def volume_from_cifti(ts_cifti, struct_names=None):
         subcorticals_vol = np.zeros(bmf.volume_shape + (ts_array.shape[0],))
         for idx, (nam,slc,bm) in enumerate(bmf.iter_structures()):
 
-            # if (struct_names is None) | (nam in struct_names): 
+            # if (struct_names is None) | (nam in struct_names):
 
             # get the voxels/vertices corresponding to the current brain model
             ijk = bm.voxel
@@ -154,7 +157,7 @@ def surf_from_cifti(ts_cifti,
         ts_list = []
         for idx, (nam,slc,bm) in enumerate(bmf.iter_structures()):
             # just get the cortical surfaces
-            if nam in struct_names: 
+            if nam in struct_names:
                 values = np.full((ts_array.shape[0],bmf.nvertices[nam]),np.nan)
                 # get the values corresponding to the brain model
                 values[:,bm.vertex] = ts_array[:, slc]
@@ -240,18 +243,18 @@ def coords_to_voxelidxs(coords,vol_def):
 def sample_image(img,xm,ym,zm,interpolation):
     """
     Return values after resample image
-    
+
     Args:
         img (Nifti image)
         xm (np-array)
-            X-coordinate in world coordinates 
+            X-coordinate in world coordinates
         ym (np-array)
             Y-coordinate in world coordinates
         zm (np-array)
-            Z-coordinate in world coordinates 
+            Z-coordinate in world coordinates
         interpolation (int)
             0: Nearest neighbor
-            1: Trilinear interpolation 
+            1: Trilinear interpolation
     Returns:
         value (np-array)
             Array contains all values in the image
@@ -266,8 +269,8 @@ def sample_image(img,xm,ym,zm,interpolation):
         invalid = np.logical_not((im>=0) & (im<img.shape[0]-1) & (jm>=0) & (jm<img.shape[1]-1) & (km>=0) & (km<img.shape[2]-1))
         ir[invalid] = 0
         jr[invalid] = 0
-        kr[invalid] = 0 
-                
+        kr[invalid] = 0
+
         id = im - ir
         jd = jm - jr
         kd = km - kr
@@ -275,11 +278,11 @@ def sample_image(img,xm,ym,zm,interpolation):
         D = img.get_fdata()
         if D.ndim == 4:
             ns = id.shape + (1,)
-        if D.ndim ==5: 
+        if D.ndim ==5:
             ns = id.shape + (1,1)
         else:
             ns = id.shape
-        
+
         id = id.reshape(ns)
         jd = jd.reshape(ns)
         kd = kd.reshape(ns)
@@ -297,10 +300,10 @@ def sample_image(img,xm,ym,zm,interpolation):
         c01 = c001*(1-id)+c101*id
         c10 = c010*(1-id)+c110*id
         c11 = c011*(1-id)+c111*id
-        
+
         c0 = c00*(1-jd)+c10*jd
         c1 = c01*(1-jd)+c11*jd
-        
+
         value = c0*(1-kd)+c1*kd
     elif interpolation == 0:
         ir = np.rint(im).astype('int')
@@ -309,17 +312,13 @@ def sample_image(img,xm,ym,zm,interpolation):
 
         ir, jr, kr, invalid = check_range(img, ir, jr, kr)
         value = img.get_fdata()[ir, jr, kr]
-    
+
     # Kill the invalid elements
     if value.dtype is float:
         value[invalid]=np.nan
-    else: 
+    else:
         value[invalid]=0
     return value
-
-
-
-
 
 def make_func_gifti(
     data,
@@ -463,6 +462,9 @@ def make_label_gifti(
     gifti.labeltable.labels.extend(E_all)
     return gifti
 
+def get_gifti_data_matrix(gifti):
+    return np.c_[gifti.agg_data()]
+
 def get_gifti_column_names(gifti):
     """Returns the column names from a gifti file (*.label.gii or *.func.gii)
 
@@ -549,3 +551,42 @@ def get_gifti_labels(gifti):
     label_dict = gifti.labeltable.get_labels_as_dict()
     labels = list(label_dict.values())
     return labels
+
+def get_brain_model_axis(data,atlas_maps,names=None):
+    """Transforms a list of data sets and list of atlas maps
+    into a cifti2image
+
+    Args:
+        data (list):
+            List / array of data arrays - need to have all same shape[0]
+            and a shape[1] that matches the corresponding atlas map
+        atlas_maps (list):
+            List / array of atlas maps
+        names (list of str):
+            Names for the scalar axis
+    Returns:
+        img: nibabel.cifti2image
+            Can be saved as (*.dscalar.nii) file
+    """
+    # Check is a single is given
+    if type(data) is not list:
+        data = [data]
+    if type(atlas_maps) is not list:
+        atlas_maps = [atlas_maps]
+
+    # Make the brain Structure models
+    for i,atm in enumerate(atlas_maps):
+        if i == 0:
+            bm = atm.atlas.get_brain_model_axis()
+            D = data[i]
+        else:
+            bm = bm+atm.atlas.get_brain_model_axis()
+            D = np.c_[D,data[i]]
+
+    # row_axis = nb.cifti2.SeriesAxis(start=0,step=1,size=D.shape[0])
+    if names is None:
+        names = [f'row {r:02}' for r in range(D.shape[0])]
+    row_axis = nb.cifti2.ScalarAxis(names)
+    header = nb.Cifti2Header.from_axes((row_axis,bm))
+    cifti_img = nb.Cifti2Image(dataobj=D,header=header)
+    return cifti_img
