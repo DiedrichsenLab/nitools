@@ -24,7 +24,6 @@ def affine_transform(x1, x2, x3, M):
             Y-coordinate of transform
         x3 (np-array):
             Z-coordinate of transform
-
     """
     y1 = M[0,0]*x1 + M[0,1]*x2 + M[0,2]*x3 + M[0,3]
     y2 = M[1,0]*x1 + M[1,1]*x2 + M[1,2]*x3 + M[1,3]
@@ -47,7 +46,6 @@ def affine_transform_mat(x, M):
     y = M[0:3,0:3] @ x + M[0:3,3:]
     return (y)
 
-
 def coords_to_linvidxs(coords,vol_def,mask=False):
     """
     Maps coordinates to linear voxel indices
@@ -64,7 +62,7 @@ def coords_to_linvidxs(coords,vol_def,mask=False):
             Linear voxel indices
         good (bool) boolean array that tells you whether the index was in the mask
     """
-    mat = inv(vol_def.affine)
+    mat = np.linalg.inv(vol_def.affine)
 
     # Check that coordinate transformation matrix is 4x4
     if (mat.shape != (4,4)):
@@ -98,147 +96,24 @@ def coords_to_linvidxs(coords,vol_def,mask=False):
 
     return linindx, good
 
+
 def sq_eucl_distances(coordA,coordB):
+    """Computes full matrix of square
+    Euclidean  distance between sets of coordinates
+
+    Args:
+        coordA (nd-array):
+            3xP matrix of coordinates
+        coordB (nd-array):
+            3xQ matrix of coordinats
+
+    Returns:
+        ndarray:
+            PxQ matrix of squared distances
+    """
     D = coordA.reshape(3,-1,1)-coordB.reshape(3,1,-1)
     D = np.sum(D**2,axis=0)
     return D
-
-
-def volume_from_cifti(ts_cifti, struct_names=None):
-        """
-        Gets the 4D nifti object containing the time series
-        for all the subcortical structures
-        Args:
-            ts_cifti (cifti obj ) - cifti object of the time series
-        Returns:
-            nii_vol(nifti vol object) - nifti object containing the time series of subcorticals
-        """
-        # get brain axis models
-        bmf = ts_cifti.header.get_axis(1)
-        # get the data array with all the time points, all the structures
-        ts_array = ts_cifti.get_fdata(dtype=np.float32)
-
-        # initialize a matrix representing 4D data (x, y, z, time_point)
-        subcorticals_vol = np.zeros(bmf.volume_shape + (ts_array.shape[0],))
-        for idx, (nam,slc,bm) in enumerate(bmf.iter_structures()):
-
-            # if (struct_names is None) | (nam in struct_names):
-
-            # get the voxels/vertices corresponding to the current brain model
-            ijk = bm.voxel
-            bm_data = ts_array[:, slc]
-            i  = (ijk[:,0] > -1)
-
-            # fill in data
-            subcorticals_vol[ijk[i, 0], ijk[i, 1], ijk[i, 2], :]=bm_data[:,i].T
-
-        # save as nii
-        nii_vol_4d = nb.Nifti1Image(subcorticals_vol,bmf.affine)
-        # if save:
-        #     ts_nifti = dir+'/sub-100307_ses-01_task-rest_space-subcortex_run-01_bold.nii'
-        #     nb.save(nii_vol,ts_nifti)
-        return nii_vol_4d
-
-def surf_from_cifti(ts_cifti,
-                    struct_names=['CIFTI_STRUCTURE_CORTEX_LEFT',
-                                    'CIFTI_STRUCTURE_CORTEX_RIGHT']):
-        """
-        Gets the time series of cortical surface vertices (Left and Right)
-        Args:
-            ts_cifti (cifti obj) - cifti object of time series
-        Returns:
-            cii (cifti object) - contains the time series for the cortex
-        """
-        # get brain axis models
-        bmf = ts_cifti.header.get_axis(1)
-        # print(dir(bmf))
-        # get the data array with all the time points, all the structures
-        ts_array = ts_cifti.get_fdata()
-        ts_list = []
-        for idx, (nam,slc,bm) in enumerate(bmf.iter_structures()):
-            # just get the cortical surfaces
-            if nam in struct_names:
-                values = np.full((ts_array.shape[0],bmf.nvertices[nam]),np.nan)
-                # get the values corresponding to the brain model
-                values[:,bm.vertex] = ts_array[:, slc]
-                ts_list.append(values)
-            else:
-                break
-        return ts_list
-
-
-
-def affine_transform(x1,x2,x3,M):
-    """
-    Returns affine transform of x
-
-    Args:
-        x1 (np-array):
-            X-coordinate of original
-        x2 (np-array):
-            Y-coordinate of original
-        x3 (np-array):
-            Z-coordinate of original
-        M (2d-array):
-            4x4 transformation matrix
-
-    Returns:
-        x1 (np-array):
-            X-coordinate of transform
-        x2 (np-array):
-            Y-coordinate of transform
-        x3 (np-array):
-            Z-coordinate of transform
-
-    """
-    y1 = np.multiply(M[0,0],x1) + np.multiply(M[0,1],x2) + np.multiply(M[0,2],x3) + M[0,3]
-    y2 = np.multiply(M[1,0],x1) + np.multiply(M[1,1],x2) + np.multiply(M[1,2],x3) + M[1,3]
-    y3 = np.multiply(M[2,0],x1) + np.multiply(M[2,1],x2) + np.multiply(M[2,2],x3) + M[2,3]
-    return (y1,y2,y3)
-
-def coords_to_voxelidxs(coords,vol_def):
-    """
-    Maps coordinates to linear voxel indices
-
-    Args:
-        coords (3*N matrix or 3xPxQ array):
-            (x,y,z) coordinates
-        vol_def (nibabel object):
-            Nibabel object with attributes .affine (4x4 voxel to coordinate transformation matrix from the images to be sampled (1-based)) and shape (1x3 volume dimension in voxels)
-
-    Returns:
-        linidxsrs (np.ndarray):
-            N-array or PxQ matrix of Linear voxel indices
-    """
-    mat = np.array(vol_def.affine)
-
-    # Check that coordinate transformation matrix is 4x4
-    if (mat.shape != (4,4)):
-        sys.exit('Error: Matrix should be 4x4')
-
-    rs = coords.shape
-    if (rs[0] != 3):
-        sys.exit('Error: First dimension of coords should be 3')
-
-    if (np.size(rs) == 2):
-        nCoordsPerNode = 1
-        nVerts = rs[1]
-    elif (np.size(rs) == 3):
-        nCoordsPerNode = rs[1]
-        nVerts = rs[2]
-    else:
-        sys.exit('Error: Coordindates have %d dimensions, not supported'.format(np.size(rs)))
-
-    # map to 3xP matrix (P coordinates)
-    coords = np.reshape(coords,[3,-1])
-    coords = np.vstack([coords,np.ones((1,rs[1]))])
-
-    ijk = np.linalg.solve(mat,coords)
-    ijk = np.rint(ijk)[0:3,:]
-    # Now set the indices out of range to -1
-    for i in range(3):
-        ijk[i,ijk[i,:]>=vol_def.shape[i]]=-1
-    return ijk
 
 def sample_image(img,xm,ym,zm,interpolation):
     """
@@ -645,41 +520,71 @@ def join_giftis(giftis,mask=[None,None],seperate_labels=False,join_zero=False):
     cifti_img = nb.Cifti2Image(dataobj=D,header=header)
     return cifti_img
 
-def get_brain_model_axis(data,atlas_maps,names=None):
-    """Transforms a list of data sets and list of atlas maps
-    into a cifti2image
+def volume_from_cifti(ts_cifti, struct_names=None):
+        """
+        Gets the 4D nifti object containing the time series
+        for all subcortical (volume-based) structures
+        Args:
+            ts_cifti (ciftiImage):
+                cifti object of the time series
+            struct_names (list or None):
+                List of structure names that are included
+                defaults to None
+        Returns:
+            nii_vol(niftiImage):
+                nifti object containing the time series
+        """
+        # get brain axis models
+        bmf = ts_cifti.header.get_axis(1)
+        # get the data array with all the time points, all the structures
+        ts_array = ts_cifti.get_fdata(dtype=np.float32)
 
-    Args:
-        data (list):
-            List / array of data arrays - need to have all same shape[0]
-            and a shape[1] that matches the corresponding atlas map
-        atlas_maps (list):
-            List / array of atlas maps
-        names (list of str):
-            Names for the scalar axis
-    Returns:
-        img: nibabel.cifti2image
-            Can be saved as (*.dscalar.nii) file
-    """
-    # Check is a single is given
-    if type(data) is not list:
-        data = [data]
-    if type(atlas_maps) is not list:
-        atlas_maps = [atlas_maps]
+        # initialize a matrix representing 4D data (x, y, z, time_point)
+        subcorticals_vol = np.zeros(bmf.volume_shape + (ts_array.shape[0],))
+        for idx, (nam,slc,bm) in enumerate(bmf.iter_structures()):
 
-    # Make the brain Structure models
-    for i,atm in enumerate(atlas_maps):
-        if i == 0:
-            bm = atm.atlas.get_brain_model_axis()
-            D = data[i]
-        else:
-            bm = bm+atm.atlas.get_brain_model_axis()
-            D = np.c_[D,data[i]]
+            # if (struct_names is None) | (nam in struct_names):
 
-    # row_axis = nb.cifti2.SeriesAxis(start=0,step=1,size=D.shape[0])
-    if names is None:
-        names = [f'row {r:02}' for r in range(D.shape[0])]
-    row_axis = nb.cifti2.ScalarAxis(names)
-    header = nb.Cifti2Header.from_axes((row_axis,bm))
-    cifti_img = nb.Cifti2Image(dataobj=D,header=header)
-    return cifti_img
+            # get the voxels/vertices corresponding to the current brain model
+            ijk = bm.voxel
+            bm_data = ts_array[:, slc]
+            i  = (ijk[:,0] > -1)
+
+            # fill in data
+            subcorticals_vol[ijk[i, 0], ijk[i, 1], ijk[i, 2], :]=bm_data[:,i].T
+
+        # save as nii
+        nii_vol_4d = nb.Nifti1Image(subcorticals_vol,bmf.affine)
+        return nii_vol_4d
+
+def surf_from_cifti(cifti,
+                    struct_names=['CIFTI_STRUCTURE_CORTEX_LEFT',
+                                    'CIFTI_STRUCTURE_CORTEX_RIGHT']):
+        """
+        Gets the time series of cortical surface vertices (Left and Right)
+        Args:
+            cifti (cifti2Image):
+                Input cifti that contains surface data
+            struct_names (list):
+                Names of anatomical structures (in cifti format).
+                Defaults to left and right hemisphere
+        Returns:
+            list of ndarrays:
+                Data for all surface, with data x numVert for each surface
+        """
+        # get brain axis models
+        bmf = cifti.header.get_axis(1)
+        # print(dir(bmf))
+        # get the data array with all the time points, all the structures
+        ts_array = cifti.get_fdata()
+        ts_list = []
+        for idx, (nam,slc,bm) in enumerate(bmf.iter_structures()):
+            # just get the cortical surfaces
+            if nam in struct_names:
+                values = np.full((ts_array.shape[0],bmf.nvertices[nam]),np.nan)
+                # get the values corresponding to the brain model
+                values[:,bm.vertex] = ts_array[:, slc]
+                ts_list.append(values)
+            else:
+                break
+        return ts_list
