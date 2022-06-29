@@ -552,6 +552,96 @@ def get_gifti_labels(gifti):
     labels = list(label_dict.values())
     return labels
 
+def join_giftis(giftis,mask=None,seperate_labels=False,join_zero=False):
+    """ Combines a left and right hemispheric Gifti file into a single Cifti
+    file that contains both hemisphere
+
+    Args:
+        giftis (list):
+            List of 2 Gifti images or list of 2 file names to be merged:
+            gives warning if not left and right hemisphere
+        mask (list, optional):
+            Mask for each hemisphere (only vertices within mask will be used).
+            Defaults to [None,None].
+            Can be set to list of giftis, filesnames, or nd-arrays
+        seperate_labels (bool, optional):
+            False (default): Simple merges the two files
+            True: Offsets the label for the right hemisphere, and prepend a L/R to label
+        join_zero (bool, optional):
+            If set to true, the zero-label will be joined for the two hemispheres, resulting
+            label less overall. (default = False)
+
+    Returns:
+        cifti_img: Cifti-image
+    """
+    hem_name = ['cortex_left','cortex_right']
+    hem = ['L','R']
+    GIF = []
+
+    # Load the giftis
+    for i,g in enumerate(giftis):
+        if type(g) is str:
+            GIF.append(nb.load(g))
+        elif type(g) is nb.GiftiImage:
+            GIF.append(g)
+        else:
+            raise(NameError('Giftis need to be filenames or Gifti (filenames '))
+
+    bm = []
+    data = []
+    for h in range(2):
+        # Check if intent and names across all columns
+        intent = []
+        names = []
+        for i,d in enumerate(GIF[h].darrays):
+            intent.append(d.intent)
+            for md in d.meta.data:
+                if 'Name' in md.name:
+                    names.append(md.value)
+
+        # Get the data and make the brain model axis
+        data.append(np.c_[GIF[h].agg_data()])
+        if mask is None:
+            bm.append(nb.cifti2.BrainModelAxis.from_mask(np.ones((data[h].shape[0],)),hem_name[h]))
+        else:
+            pass
+
+    # Label axis:
+    if intent[0]==1002:
+        new_labels = {}
+        # If not seperate labels, use the labels for the left hemisphere
+        if seperate_labels is False:
+            labels = GIF[0].labeltable.labels
+            for i,l in enumerate(labels):
+                new_labels[i]=(l.label,l.rgba)
+        # If seperate labels, concat the labels from L and R
+        # If keep_zero is True uses the same zero label for the two hems
+        else:
+            max_label = 0
+            for h in range(2):
+                if join_zero:
+                    data[h]+=max_label
+                    data[h][data[h]==max_label]=0
+                    for i,l in enumerate(GIF[h].labeltable.labels[h:]):
+                        new_labels[i+max_label+h]=(f"{hem[h]}-{l.label}",l.rgba)
+                    max_label  = data[h].max()
+                else:
+                    data[h]+=max_label
+                    for i,l in enumerate(GIF[h].labeltable.labels):
+                        new_labels[i+max_label]=(f"{hem[h]}-{l.label}",l.rgba)
+                    max_label  = data[h].max()+1
+        D = np.concatenate(data,axis=0).T
+        row_axis=nb.cifti2.LabelAxis(names, new_labels)
+    # Scalar Axis:
+    else:
+        row_axis = nb.cifti2.ScalarAxis(names)
+        D = np.concatenate(data,axis=0).T
+
+    # Finalize CIFTI object
+    header = nb.Cifti2Header.from_axes((row_axis,bm[0]+bm[1]))
+    cifti_img = nb.Cifti2Image(dataobj=D,header=header)
+    return cifti_img
+
 def get_brain_model_axis(data,atlas_maps,names=None):
     """Transforms a list of data sets and list of atlas maps
     into a cifti2image
