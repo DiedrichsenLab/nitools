@@ -18,4 +18,6 @@ Gifti Utilities
 * get_gifti_labels: Get label names and colors
 
 Cifti Utilities
-
+* join_giftis: Joins a left- and right-hemispheric Gifti into a single CIFTI
+* volume_from_cifti: Extracts Nifti-volume data from a Cifti file
+* surf_from_cifti: Extract the surface-based data from a Cifti file
