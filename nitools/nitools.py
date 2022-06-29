@@ -2,6 +2,8 @@
 """
 import numpy as np
 import nibabel as nb
+import matplotlib as mpl
+import matplotlib.pyplot as plt
 
 def affine_transform(x1, x2, x3, M):
     """
@@ -97,7 +99,7 @@ def coords_to_linvidxs(coords,vol_def,mask=False):
     return linindx, good
 
 
-def sq_eucl_distances(coordA,coordB):
+def euclidean_dist_sq(coordA,coordB):
     """Computes full matrix of square
     Euclidean  distance between sets of coordinates
 
@@ -134,7 +136,7 @@ def sample_image(img,xm,ym,zm,interpolation):
         value (np-array)
             Array contains all values in the image
     """
-    im,jm,km = affine_transform(xm,ym,zm,inv(img.affine))
+    im,jm,km = affine_transform(xm,ym,zm,np.linalg.inv(img.affine))
 
     if interpolation == 1:
         ir = np.floor(im).astype('int')
@@ -185,7 +187,10 @@ def sample_image(img,xm,ym,zm,interpolation):
         jr = np.rint(jm).astype('int')
         kr = np.rint(km).astype('int')
 
-        ir, jr, kr, invalid = check_range(img, ir, jr, kr)
+        invalid = check_voxel_range(img, ir, jr, kr)
+        ir[invalid] = 0
+        jr[invalid] = 0
+        kr[invalid] = 0
         value = img.get_fdata()[ir, jr, kr]
 
     # Kill the invalid elements
@@ -194,6 +199,28 @@ def sample_image(img,xm,ym,zm,interpolation):
     else:
         value[invalid]=0
     return value
+
+def check_voxel_range(img,i,j,k):
+    """
+    Checks if i,j,k voxels coordinates are within an image
+
+    Args:
+        img (niftiImage or ndarray):
+            needs shape to determine voxels ranges
+        i (np.array):
+            all i-coordinates
+        j (np.array):
+            all j-coordinates
+        k (np.array):
+            all k-coordinates
+    Returns:
+        nd.array:
+            boolean array indicating whether i,j,k coordinates are valid or not
+    """
+    invalid = np.logical_not((i>=0) & (i<img.shape[0]) &
+                           (j>=0) & (j<img.shape[1]) &
+                           (k>=0) & (k<img.shape[2]))
+    return invalid
 
 def make_func_gifti(
     data,
@@ -360,13 +387,14 @@ def get_gifti_column_names(gifti):
                 names.append(gifti.darrays[n].meta.data[i].value)
     return names
 
-def get_gifti_colortable(gifti,ignore_0=True):
+def get_gifti_colortable(gifti,ignore_zero=False):
     """Returns the RGBA color table and matplotlib cmap from gifti object (*.label.gii)
 
     Args:
         gifti (gifti image):
             Nibabel Gifti image
-
+        ignore_zero (bool):
+            Skip the color corresponding to label 0? Defaults to False
     Returns:
         rgba (np.ndarray):
             N x 4 of RGB values
@@ -381,11 +409,11 @@ def get_gifti_colortable(gifti,ignore_0=True):
     for i,label in enumerate(labels):
         rgba[i,] = labels[i].rgba
 
-    if ignore_0:
+    if ignore_zero:
         rgba = rgba[1:]
         labels = labels[1:]
 
-    cmap = LinearSegmentedColormap.from_list('mylist', rgba, N=len(rgba))
+    cmap = mpl.colors.LinearSegmentedColormap.from_list('mylist', rgba, N=len(rgba))
     mpl.cm.unregister_cmap("mycolormap")
     mpl.cm.register_cmap("mycolormap", cmap)
 
