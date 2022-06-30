@@ -52,17 +52,18 @@ def coords_to_linvidxs(coords,vol_def,mask=False):
     """
     Maps coordinates to linear voxel indices
 
-    INPUT:
+    Args:
         coords (3xN matrix or Qx3xN array):
             (x,y,z) coordinates
         vol_def (nibabel object):
             Nibabel object with attributes .affine (4x4 voxel to coordinate transformation matrix from the images to be sampled (1-based)) and shape (1x3 volume dimension in voxels)
         mask (bool):
             If true, uses the mask image to restrict voxels (all outside = -1)
-    OUTPUT:
+    Returns:
         linvidxs (N-array or QxN matrix):
             Linear voxel indices
-        good (bool) boolean array that tells you whether the index was in the mask
+        good (bool):
+            boolean array that tells you whether the index was in the mask
     """
     mat = np.linalg.inv(vol_def.affine)
 
@@ -104,13 +105,13 @@ def euclidean_dist_sq(coordA,coordB):
     Euclidean  distance between sets of coordinates
 
     Args:
-        coordA (nd-array):
+        coordA (ndarray):
             3xP matrix of coordinates
-        coordB (nd-array):
+        coordB (ndarray):
             3xQ matrix of coordinats
 
     Returns:
-        ndarray:
+        Dist (ndarray):
             PxQ matrix of squared distances
     """
     D = coordA.reshape(3,-1,1)-coordB.reshape(3,1,-1)
@@ -122,18 +123,19 @@ def sample_image(img,xm,ym,zm,interpolation):
     Return values after resample image
 
     Args:
-        img (Nifti image)
-        xm (np-array)
+        img (Nifti image):
+            Input Nifti Image
+        xm (np-array):
             X-coordinate in world coordinates
-        ym (np-array)
+        ym (np-array):
             Y-coordinate in world coordinates
-        zm (np-array)
+        zm (np-array):
             Z-coordinate in world coordinates
-        interpolation (int)
+        interpolation (int):
             0: Nearest neighbor
             1: Trilinear interpolation
     Returns:
-        value (np-array)
+        value (np-array):
             Array contains all values in the image
     """
     im,jm,km = affine_transform(xm,ym,zm,np.linalg.inv(img.affine))
@@ -214,8 +216,8 @@ def check_voxel_range(img,i,j,k):
         k (np.array):
             all k-coordinates
     Returns:
-        nd.array:
-            boolean array indicating whether i,j,k coordinates are valid or not
+        invalid (nd.array):
+            boolean array indicating whether i,j,k coordinates are invalid
     """
     invalid = np.logical_not((i>=0) & (i<img.shape[0]) &
                            (j>=0) & (j<img.shape[1]) &
@@ -365,19 +367,27 @@ def make_label_gifti(
     return gifti
 
 def get_gifti_data_matrix(gifti):
+    """Returns the data matrix contained in a GiftiImage.
+
+    Args:
+        gifti (giftiImage):
+            Nibabel Gifti image
+
+    Returns:
+        data (ndarray):
+            Concatinated data from the Gifti file
+    """
     return np.c_[gifti.agg_data()]
 
 def get_gifti_column_names(gifti):
-    """Returns the column names from a gifti file (*.label.gii or *.func.gii)
+    """Returns the column names from a GiftiImage
 
     Args:
         gifti (gifti image):
             Nibabel Gifti image
-
     Returns:
         names (list):
             List of column names from gifti object attribute data arrays
-
     """
     N = len(gifti.darrays)
     names = []
@@ -388,17 +398,16 @@ def get_gifti_column_names(gifti):
     return names
 
 def get_gifti_colortable(gifti,ignore_zero=False):
-    """Returns the RGBA color table and matplotlib cmap from gifti object (*.label.gii)
+    """Returns the RGBA color table and matplotlib cmap from gifti object
 
     Args:
         gifti (gifti image):
-            Nibabel Gifti image
+            Nibabel GiftiImage
         ignore_zero (bool):
             Skip the color corresponding to label 0? Defaults to False
     Returns:
         rgba (np.ndarray):
             N x 4 of RGB values
-
         cmap (mpl obj):
             matplotlib colormap
 
@@ -420,8 +429,7 @@ def get_gifti_colortable(gifti,ignore_zero=False):
     return rgba, cmap
 
 def get_gifti_anatomical_struct(gifti):
-    """
-    Returns the primary anatomical structure for a gifti object (*.label.gii or *.func.gii)
+    """ Returns the primary anatomical structure for a GiftiImage
 
     Args:
         gifti (gifti image):
@@ -430,7 +438,6 @@ def get_gifti_anatomical_struct(gifti):
     Returns:
         anatStruct (string):
             AnatomicalStructurePrimary attribute from gifti object
-
     """
     N = len(gifti._meta.data)
     for i in range(N):
@@ -439,17 +446,15 @@ def get_gifti_anatomical_struct(gifti):
     return anatStruct
 
 def get_gifti_labels(gifti):
-    """Returns labels from gifti object (*.label.gii)
+    """ Returns labels from gifti Image
 
     Args:
         gifti (gifti image):
             Nibabel Gifti image
-
     Returns:
         labels (list):
             labels from gifti object
     """
-    # labels = img.labeltable.get_labels_as_dict().values()
     label_dict = gifti.labeltable.get_labels_as_dict()
     labels = list(label_dict.values())
     return labels
@@ -549,9 +554,9 @@ def join_giftis(giftis,mask=[None,None],seperate_labels=False,join_zero=False):
     return cifti_img
 
 def volume_from_cifti(ts_cifti, struct_names=None):
-        """
-        Gets the 4D nifti object containing the time series
+        """ Gets the 4D nifti object containing the time series
         for all subcortical (volume-based) structures
+
         Args:
             ts_cifti (ciftiImage):
                 cifti object of the time series
@@ -588,8 +593,8 @@ def volume_from_cifti(ts_cifti, struct_names=None):
 def surf_from_cifti(cifti,
                     struct_names=['CIFTI_STRUCTURE_CORTEX_LEFT',
                                     'CIFTI_STRUCTURE_CORTEX_RIGHT']):
-        """
-        Gets the time series of cortical surface vertices (Left and Right)
+        """ Gets the data for cortical surface vertices (Left and Right)
+
         Args:
             cifti (cifti2Image):
                 Input cifti that contains surface data
