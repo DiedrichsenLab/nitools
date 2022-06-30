@@ -1,6 +1,6 @@
 from distutils.core import setup
 setup(
-  name = 'nitools',
+  name = 'neuroimagingtools',
   packages = ['nitools'],
   version = '0.5.0',
   license='MIT',
