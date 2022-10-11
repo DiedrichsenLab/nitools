@@ -196,7 +196,7 @@ def sample_image(img,xm,ym,zm,interpolation):
         value = img.get_fdata()[ir, jr, kr]
 
     # Kill the invalid elements
-    if value.dtype is float:
+    if value.dtype==np.dtype('float'):
         value[invalid]=np.nan
     else:
         value[invalid]=0
