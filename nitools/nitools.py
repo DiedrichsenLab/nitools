@@ -224,6 +224,26 @@ def check_voxel_range(img,i,j,k):
                            (k>=0) & (k<img.shape[2]))
     return invalid
 
+def deform_image(source,deform,interpolation):
+    """ This function resamples an image into an atlas space, 
+    using a non-linear deformation map
+
+    Args:
+        source (NiftiImage): Source nifti imate
+        deform (NiftiImage): A (x,y,z,1,3) deformation image
+        interpolation (int): 0: Nearest Nieghbour 1:trilinear interpolation
+
+    Returns:
+        NiftiImage: Resampled source imahe - has the same shape as deform 
+    """
+    XYZ = deform.get_fdata()
+    data = sample_image(source,
+                    XYZ[:,:,:,0,0],
+                    XYZ[:,:,:,0,1],
+                    XYZ[:,:,:,0,2],interpolation)
+    outimg = nb.Nifti1Image(data,deform.affine)
+    return outimg
+
 def make_func_gifti(
     data,
     anatomical_struct='Cerebellum',
