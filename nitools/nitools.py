@@ -299,9 +299,10 @@ def make_func_gifti(
 def make_label_gifti(
                     data,
                     anatomical_struct='Cerebellum',
-                    label_names=[],
-                    column_names=[],
-                    label_RGBA=[]
+                    labels=None,
+                    label_names=None,
+                    column_names=None,
+                    label_RGBA=None
                     ):
     """Generates a label GiftiImage from a numpy array
 
@@ -310,57 +311,53 @@ def make_label_gifti(
              num_vert x num_col data
         anatomical_struct (string):
             Anatomical Structure for the Meta-data default= 'Cerebellum'
+        labels (list): Numerical values in data indicating the labels -
+            defaults to np.unique(data) 
         label_names (list):
-            List of strings for label names
+            List of strings for names for labels
         column_names (list):
             List of strings for names for columns
         label_RGBA (list):
-            List of rgba vectors
-
+            List of rgba vectors for labels
     Returns:
         gifti (GiftiImage): Label gifti image
 
     """
     num_verts, num_cols = data.shape
-    num_labels = len(np.unique(data))
-
-    # check for 0 labels
-    zero_label = 0 in data
+    if labels is None:
+        labels = np.unique(data)
+    num_labels = len(labels)
 
     # Create naming and coloring if not specified in varargin
     # Make columnNames if empty
-    if len(column_names) == 0:
+    if column_names is None:
+        column_names = []
         for i in range(num_cols):
             column_names.append("col_{:02d}".format(i+1))
 
     # Determine color scale if empty
-    if len(label_RGBA) == 0:
+    if label_RGBA is None:
+        label_RGBA = np.zeros([num_labels,4])
         hsv = plt.cm.get_cmap('hsv',num_labels)
         color = hsv(np.linspace(0,1,num_labels))
         # Shuffle the order so that colors are more visible
         color = color[np.random.permutation(num_labels)]
-        label_RGBA = np.zeros([num_labels,4])
         for i in range(num_labels):
             label_RGBA[i] = color[i]
-        if zero_label:
-            label_RGBA = np.vstack([[0,0,0,1], label_RGBA[1:,]])
 
-    # Create label names
-    if len(label_names) == 0:
-        idx = 0
-        if not zero_label:
-            idx = 1
-        for i in range(num_labels):
-            label_names.append("label-{:02d}".format(i + idx))
+    # Create label names from numerical values 
+    if label_names is None:
+        label_names = []
+        for i in labels:
+            label_names.append("label-{:02d}".format(i))
 
     # Create label.gii structure
     C = nb.gifti.GiftiMetaData.from_dict({
         'AnatomicalStructurePrimary': anatomical_struct,
         'encoding': 'XML_BASE64_GZIP'})
 
-    num_labels = np.arange(num_labels)
     E_all = []
-    for (label, rgba, name) in zip(num_labels, label_RGBA, label_names):
+    for (label, rgba, name) in zip(labels, label_RGBA, label_names):
         E = nb.gifti.gifti.GiftiLabel()
         E.key = label
         E.label= name
