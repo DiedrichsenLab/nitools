@@ -157,7 +157,7 @@ def sample_image(img,xm,ym,zm,interpolation):
         D = img.get_fdata()
         if D.ndim == 4:
             ns = id.shape + (1,)
-        if D.ndim ==5:
+        elif D.ndim ==5:
             ns = id.shape + (1,1)
         else:
             ns = id.shape
@@ -225,7 +225,7 @@ def check_voxel_range(img,i,j,k):
     return invalid
 
 def deform_image(source,deform,interpolation):
-    """ This function resamples an image into an atlas space, 
+    """ This function resamples an image into an atlas space,
     using a non-linear deformation map
 
     Args:
@@ -234,7 +234,7 @@ def deform_image(source,deform,interpolation):
         interpolation (int): 0: Nearest Nieghbour 1:trilinear interpolation
 
     Returns:
-        NiftiImage: Resampled source imahe - has the same shape as deform 
+        NiftiImage: Resampled source imahe - has the same shape as deform
     """
     XYZ = deform.get_fdata()
     data = sample_image(source,
@@ -312,7 +312,7 @@ def make_label_gifti(
         anatomical_struct (string):
             Anatomical Structure for the Meta-data default= 'Cerebellum'
         labels (list): Numerical values in data indicating the labels -
-            defaults to np.unique(data) 
+            defaults to np.unique(data)
         label_names (list):
             List of strings for names for labels
         column_names (list):
@@ -345,7 +345,7 @@ def make_label_gifti(
         for i in range(num_labels):
             label_RGBA[i] = color[i]
 
-    # Create label names from numerical values 
+    # Create label names from numerical values
     if label_names is None:
         label_names = []
         for i in labels:
