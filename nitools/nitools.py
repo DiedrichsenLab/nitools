@@ -570,41 +570,40 @@ def join_giftis(giftis,mask=[None,None],seperate_labels=False,join_zero=False):
     cifti_img = nb.Cifti2Image(dataobj=D,header=header)
     return cifti_img
 
-def volume_from_cifti(ts_cifti, struct_names=None):
-        """ Gets the 4D nifti object containing the time series
+def volume_from_cifti(cifti, struct_names=None):
+        """ Gets the 4D nifti object containing the data
         for all subcortical (volume-based) structures
 
         Args:
-            ts_cifti (ciftiImage):
-                cifti object of the time series
+            cifti (ciftiImage):
+                cifti object containing the data
             struct_names (list or None):
                 List of structure names that are included
                 defaults to None
         Returns:
             nii_vol(niftiImage):
-                nifti object containing the time series
+                nifti object containing the data
         """
         # get brain axis models
-        bmf = ts_cifti.header.get_axis(1)
+        bmf = cifti.header.get_axis(1)
         # get the data array with all the time points, all the structures
-        ts_array = ts_cifti.get_fdata(dtype=np.float32)
+        d_array = cifti.get_fdata(dtype=np.float32)
 
         # initialize a matrix representing 4D data (x, y, z, time_point)
-        subcorticals_vol = np.zeros(bmf.volume_shape + (ts_array.shape[0],))
+        vol = np.zeros(bmf.volume_shape + (d_array.shape[0],))
         for idx, (nam,slc,bm) in enumerate(bmf.iter_structures()):
 
-            # if (struct_names is None) | (nam in struct_names):
+            if (struct_names is None) | (nam in struct_names):
 
-            # get the voxels/vertices corresponding to the current brain model
-            ijk = bm.voxel
-            bm_data = ts_array[:, slc]
-            i  = (ijk[:,0] > -1)
+                ijk = bm.voxel
+                bm_data = d_array[:, slc]
+                i  = (ijk[:,0] > -1)
 
-            # fill in data
-            subcorticals_vol[ijk[i, 0], ijk[i, 1], ijk[i, 2], :]=bm_data[:,i].T
+                # fill in data
+                vol[ijk[i, 0], ijk[i, 1], ijk[i, 2], :]=bm_data[:,i].T
 
         # save as nii
-        nii_vol_4d = nb.Nifti1Image(subcorticals_vol,bmf.affine)
+        nii_vol_4d = nb.Nifti1Image(vol,bmf.affine)
         return nii_vol_4d
 
 def surf_from_cifti(cifti,
