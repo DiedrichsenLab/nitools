@@ -5,6 +5,7 @@ import nibabel as nb
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
+
 def affine_transform(x1, x2, x3, M):
     """
     Returns affine transform of x
@@ -570,7 +571,7 @@ def join_giftis(giftis,mask=[None,None],seperate_labels=False,join_zero=False):
     cifti_img = nb.Cifti2Image(dataobj=D,header=header)
     return cifti_img
 
-def volume_from_cifti(cifti, struct_names=None):
+def volume_from_cifti(cifti, struct_names=[]):
         """ Gets the 4D nifti object containing the data
         for all subcortical (volume-based) structures
 
@@ -589,12 +590,13 @@ def volume_from_cifti(cifti, struct_names=None):
         # get the data array with all the time points, all the structures
         d_array = cifti.get_fdata(dtype=np.float32)
 
+        struct_names = [nb.cifti2.BrainModelAxis.to_cifti_brain_structure_name(n) for n in struct_names]
+
         # initialize a matrix representing 4D data (x, y, z, time_point)
         vol = np.zeros(bmf.volume_shape + (d_array.shape[0],))
         for idx, (nam,slc,bm) in enumerate(bmf.iter_structures()):
 
-            if (struct_names is None) | (nam in struct_names):
-
+            if (any(s in nam for s in struct_names)):
                 ijk = bm.voxel
                 bm_data = d_array[:, slc]
                 i  = (ijk[:,0] > -1)
@@ -607,8 +609,7 @@ def volume_from_cifti(cifti, struct_names=None):
         return nii_vol_4d
 
 def surf_from_cifti(cifti,
-                    struct_names=['CIFTI_STRUCTURE_CORTEX_LEFT',
-                                    'CIFTI_STRUCTURE_CORTEX_RIGHT']):
+                    struct_names=['cortex_left','cortex_right']):
         """ Gets the data for cortical surface vertices (Left and Right)
 
         Args:
@@ -627,9 +628,12 @@ def surf_from_cifti(cifti,
         # get the data array with all the time points, all the structures
         ts_array = cifti.get_fdata()
         ts_list = []
+        # Ensure that structure names are in CIFTI format
+        struct_names = [nb.cifti2.BrainModelAxis.to_cifti_brain_structure_name(n) for n in struct_names]
+
         for idx, (nam,slc,bm) in enumerate(bmf.iter_structures()):
             # just get the cortical surfaces
-            if nam in struct_names:
+            if (any(s in nam for s in struct_names)):
                 values = np.full((ts_array.shape[0],bmf.nvertices[nam]),np.nan)
                 # get the values corresponding to the brain model
                 values[:,bm.vertex] = ts_array[:, slc]
