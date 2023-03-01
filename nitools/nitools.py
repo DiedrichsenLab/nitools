@@ -621,3 +621,30 @@ def surf_from_cifti(cifti,
             else:
                 break
         return ts_list
+
+def cifti_surf_to_gifti(cifti_img, type = "label", label_names = [], column_names = []):
+    """
+    takes in a cifti image for left and right cortical hemispheres and convert it to gii
+    """
+    img = surf_from_cifti(cifti_img,
+                struct_names=['CIFTI_STRUCTURE_CORTEX_LEFT',
+                                'CIFTI_STRUCTURE_CORTEX_RIGHT'])
+    
+    gii = []
+    for h, hem_name in enumerate(['CortexLeft', 'CortexRight']):
+
+        if type == "label":
+            gii.append(make_label_gifti(
+                                            img[h],
+                                            anatomical_struct=hem_name,
+                                            label_names=label_names,
+                                            column_names=column_names,
+                                            label_RGBA=[]
+                                            ))
+        elif type == "func":
+            gii.append(make_func_gifti(
+                                        img[h],
+                                        anatomical_struct=hem_name,
+                                        column_names=column_names
+                                        ))
+    return gii
