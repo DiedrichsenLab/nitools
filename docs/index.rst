@@ -17,7 +17,7 @@ To simply use it, you can install the package with pip:
 ``pip install neuroimagingtools``
 
 
-.. module:: nitools
+.. module:: volume
 
 Nifti and Volume functions
 --------------------------
@@ -27,6 +27,8 @@ Nifti and Volume functions
 .. autofunction:: euclidean_dist_sq
 .. autofunction:: sample_image
 .. autofunction:: check_voxel_range
+
+.. module:: gifti
 
 Gifti and Surface functions
 ---------------------------
@@ -38,11 +40,16 @@ Gifti and Surface functions
 .. autofunction:: get_gifti_colortable
 .. autofunction:: get_gifti_labels
 
+.. module:: cifti
+
 Cifti and ROI functions
 -----------------------
-.. autofunction:: join_giftis
-.. autofunction:: volume_from_cifti
-.. autofunction:: surf_from_cifti
+.. automodule:: cifti
+    :members:
+
+
+.. automodule:: other
+    :members:
 
 
 
