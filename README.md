@@ -22,9 +22,13 @@ pip install neuroimagingtools
 * get_gifti_labels: Get label names and colors
 
 ### Cifti Utilities
-* join_giftis: Joins a left- and right-hemispheric Gifti into a single CIFTI
+* join_giftis_to_cifti: Joins a left- and right-hemispheric Gifti into a single CIFTI
+* split_cifti_to_giftis: Splits CIFTI into a left- and right-hemispheric Gifti
 * volume_from_cifti: Extracts Nifti-volume data from a Cifti file
 * surf_from_cifti: Extract the surface-based data from a Cifti file
 
+### Lookup tables utilities
+* read_lut: Read a lookup table file
+* save_lut: Save a lookup table file
 For documentation, see:
 https://nitools.readthedocs.io/en/latest/#gifti-and-surface-functions

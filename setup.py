@@ -2,13 +2,13 @@ from distutils.core import setup
 setup(
   name = 'neuroimagingtools',
   packages = ['nitools'],
-  version = '0.5.0',
+  version = '1.0.0',
   license='MIT',
   description = 'Neuroimaging analysis tools',
   author = 'Jörn Diedrichsen',
   author_email = 'joern.diedrichsen@googlemail.com',
   url = 'https://github.com/DiedrichsenLab/nitools',
-  download_url = 'https://github.com/DiedrichsenLab/nitools/archive/refs/tags/v0.5.0.tar.gz',
+  download_url = 'https://github.com/DiedrichsenLab/nitools/archive/refs/tags/v1.0.0.tar.gz',
   keywords = ['imaging analysis', 'nifti', 'gifti','cifti'],
   install_requires=[
           'numpy',
