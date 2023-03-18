@@ -5,7 +5,7 @@ import nibabel as nb
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import pandas as pd
-
+import nitools as nt
 
 def make_label_cifti(data, bm_axis,
                        labels=None,
@@ -194,16 +194,16 @@ def split_cifti_to_giftis(cifti_img, type = "label", label_names = [], column_na
     for h, hem_name in enumerate(['CortexLeft', 'CortexRight']):
 
         if type == "label":
-            gii.append(make_label_gifti(
-                                            img[h],
+            gii.append(nt.make_label_gifti(
+                                            img[h].T,
                                             anatomical_struct=hem_name,
                                             label_names=label_names,
                                             column_names=column_names,
                                             label_RGBA=[]
                                             ))
         elif type == "func":
-            gii.append(make_func_gifti(
-                                        img[h],
+            gii.append(nt.make_func_gifti(
+                                        img[h].T,
                                         anatomical_struct=hem_name,
                                         column_names=column_names
                                         ))

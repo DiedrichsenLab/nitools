@@ -49,6 +49,51 @@ def affine_transform_mat(x, M):
     y = M[0:3,0:3] @ x + M[0:3,3:]
     return (y)
 
+def coords_to_voxelidxs(coords,volDef):
+    """
+    Maps coordinates to voxel indices
+
+    INPUT:
+        coords (3*N matrix or 3xPxQ array):
+            (x,y,z) coordinates
+        voldef (nibabel object):
+            Nibabel object with attributes .affine (4x4 voxel to coordinate transformation matrix from the images to be sampled (1-based)) and shape (1x3 volume dimension in voxels)
+
+    OUTPUT:
+        linidxsrs (3xN-array or 3xPxQ matrix):
+            voxel indices
+    """
+    mat = np.array(volDef.affine)
+
+    # Check that coordinate transformation matrix is 4x4
+    if (mat.shape != (4,4)):
+        sys.exit('Error: Matrix should be 4x4')
+
+    rs = coords.shape
+    if (rs[0] != 3):
+        sys.exit('Error: First dimension of coords should be 3')
+
+    if (np.size(rs) == 2):
+        nCoordsPerNode = 1
+        nVerts = rs[1]
+    elif (np.size(rs) == 3):
+        nCoordsPerNode = rs[1]
+        nVerts = rs[2]
+    else:
+        sys.exit('Error: Coordindates have %d dimensions, not supported'.format(np.size(rs)))
+
+    # map to 3xP matrix (P coordinates)
+    coords = np.reshape(coords,[3,-1])
+    coords = np.vstack([coords,np.ones((1,rs[1]))])
+
+    ijk = np.linalg.solve(mat,coords)
+    ijk = np.rint(ijk)[0:3,:]
+    # Now set the indices out of range to -1
+    for i in range(3):
+        ijk[i,ijk[i,:]>=volDef.shape[i]]=-1
+    return ijk
+
+
 def coords_to_linvidxs(coords,vol_def,mask=False):
     """
     Maps coordinates to linear voxel indices
