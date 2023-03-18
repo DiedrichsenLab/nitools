@@ -4,3 +4,4 @@ sphinxcontrib-bibtex
 sphinx-copybutton
 matplotlib
 nibabel
+nbsphinx

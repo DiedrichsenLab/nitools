@@ -7,6 +7,15 @@ Data structures. Basic useful functions missing from nibabel and nilearn
 
 Developed and maintained by the Diedrichsenlab.
 
+Installation
+------------
+For developement, please clone the Github repository:
+https://github.com/DiedrichsenLab/nitools
+
+To simply use it, you can install the package with pip:
+
+``pip install neuroimagingtools``
+
 
 .. module:: nitools
 

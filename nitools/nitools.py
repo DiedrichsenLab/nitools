@@ -4,6 +4,7 @@ import numpy as np
 import nibabel as nb
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import pandas as pd
 
 def affine_transform(x1, x2, x3, M):
     """
@@ -157,7 +158,7 @@ def sample_image(img,xm,ym,zm,interpolation):
         D = img.get_fdata()
         if D.ndim == 4:
             ns = id.shape + (1,)
-        if D.ndim ==5:
+        elif D.ndim ==5:
             ns = id.shape + (1,1)
         else:
             ns = id.shape
@@ -196,7 +197,7 @@ def sample_image(img,xm,ym,zm,interpolation):
         value = img.get_fdata()[ir, jr, kr]
 
     # Kill the invalid elements
-    if value.dtype is float:
+    if value.dtype==np.dtype('float'):
         value[invalid]=np.nan
     else:
         value[invalid]=0
@@ -223,6 +224,26 @@ def check_voxel_range(img,i,j,k):
                            (j>=0) & (j<img.shape[1]) &
                            (k>=0) & (k<img.shape[2]))
     return invalid
+
+def deform_image(source,deform,interpolation):
+    """ This function resamples an image into an atlas space,
+    using a non-linear deformation map
+
+    Args:
+        source (NiftiImage): Source nifti imate
+        deform (NiftiImage): A (x,y,z,1,3) deformation image
+        interpolation (int): 0: Nearest Nieghbour 1:trilinear interpolation
+
+    Returns:
+        NiftiImage: Resampled source imahe - has the same shape as deform
+    """
+    XYZ = deform.get_fdata()
+    data = sample_image(source,
+                    XYZ[:,:,:,0,0],
+                    XYZ[:,:,:,0,1],
+                    XYZ[:,:,:,0,2],interpolation)
+    outimg = nb.Nifti1Image(data,deform.affine)
+    return outimg
 
 def make_func_gifti(
     data,
@@ -279,9 +300,10 @@ def make_func_gifti(
 def make_label_gifti(
                     data,
                     anatomical_struct='Cerebellum',
-                    label_names=[],
-                    column_names=[],
-                    label_RGBA=[]
+                    labels=None,
+                    label_names=None,
+                    column_names=None,
+                    label_RGBA=None
                     ):
     """Generates a label GiftiImage from a numpy array
 
@@ -290,57 +312,53 @@ def make_label_gifti(
              num_vert x num_col data
         anatomical_struct (string):
             Anatomical Structure for the Meta-data default= 'Cerebellum'
+        labels (list): Numerical values in data indicating the labels -
+            defaults to np.unique(data)
         label_names (list):
-            List of strings for label names
+            List of strings for names for labels
         column_names (list):
             List of strings for names for columns
         label_RGBA (list):
-            List of rgba vectors
-
+            List of rgba vectors for labels
     Returns:
         gifti (GiftiImage): Label gifti image
 
     """
     num_verts, num_cols = data.shape
-    num_labels = len(np.unique(data))
-
-    # check for 0 labels
-    zero_label = 0 in data
+    if labels is None:
+        labels = np.unique(data)
+    num_labels = len(labels)
 
     # Create naming and coloring if not specified in varargin
     # Make columnNames if empty
-    if len(column_names) == 0:
+    if column_names is None:
+        column_names = []
         for i in range(num_cols):
             column_names.append("col_{:02d}".format(i+1))
 
     # Determine color scale if empty
-    if len(label_RGBA) == 0:
+    if label_RGBA is None:
+        label_RGBA = np.zeros([num_labels,4])
         hsv = plt.cm.get_cmap('hsv',num_labels)
         color = hsv(np.linspace(0,1,num_labels))
         # Shuffle the order so that colors are more visible
         color = color[np.random.permutation(num_labels)]
-        label_RGBA = np.zeros([num_labels,4])
         for i in range(num_labels):
             label_RGBA[i] = color[i]
-        if zero_label:
-            label_RGBA = np.vstack([[0,0,0,1], label_RGBA[1:,]])
 
-    # Create label names
-    if len(label_names) == 0:
-        idx = 0
-        if not zero_label:
-            idx = 1
-        for i in range(num_labels):
-            label_names.append("label-{:02d}".format(i + idx))
+    # Create label names from numerical values
+    if label_names is None:
+        label_names = []
+        for i in labels:
+            label_names.append("label-{:02d}".format(i))
 
     # Create label.gii structure
     C = nb.gifti.GiftiMetaData.from_dict({
         'AnatomicalStructurePrimary': anatomical_struct,
         'encoding': 'XML_BASE64_GZIP'})
 
-    num_labels = np.arange(num_labels)
     E_all = []
-    for (label, rgba, name) in zip(num_labels, label_RGBA, label_names):
+    for (label, rgba, name) in zip(labels, label_RGBA, label_names):
         E = nb.gifti.gifti.GiftiLabel()
         E.key = label
         E.label= name
@@ -459,7 +477,7 @@ def get_gifti_labels(gifti):
     labels = list(label_dict.values())
     return labels
 
-def join_giftis(giftis,mask=[None,None],seperate_labels=False,join_zero=False):
+def join_giftis_to_cifti(giftis,mask=[None,None],seperate_labels=False,join_zero=False):
     """ Combines a left and right hemispheric Gifti file into a single Cifti
     file that contains both hemisphere
 
@@ -553,83 +571,22 @@ def join_giftis(giftis,mask=[None,None],seperate_labels=False,join_zero=False):
     cifti_img = nb.Cifti2Image(dataobj=D,header=header)
     return cifti_img
 
-def volume_from_cifti(ts_cifti, struct_names=None):
-        """ Gets the 4D nifti object containing the time series
-        for all subcortical (volume-based) structures
+def split_cifti_to_giftis(cifti_img, type = "label", label_names = [], column_names = []):
+    """ Splits a Cifti files with cortical data into two gifti obebjects
 
-        Args:
-            ts_cifti (ciftiImage):
-                cifti object of the time series
-            struct_names (list or None):
-                List of structure names that are included
-                defaults to None
-        Returns:
-            nii_vol(niftiImage):
-                nifti object containing the time series
-        """
-        # get brain axis models
-        bmf = ts_cifti.header.get_axis(1)
-        # get the data array with all the time points, all the structures
-        ts_array = ts_cifti.get_fdata(dtype=np.float32)
+    Args:
+        cifti_img (nb.CiftiImage): C
+        type (str): Type of data "label"/"func"
+        label_names (list, optional): Labelnames for Gifti header. Defaults to [].
+        column_names (list, optional): Column names for Gifti header. Defaults to [].
 
-        # initialize a matrix representing 4D data (x, y, z, time_point)
-        subcorticals_vol = np.zeros(bmf.volume_shape + (ts_array.shape[0],))
-        for idx, (nam,slc,bm) in enumerate(bmf.iter_structures()):
-
-            # if (struct_names is None) | (nam in struct_names):
-
-            # get the voxels/vertices corresponding to the current brain model
-            ijk = bm.voxel
-            bm_data = ts_array[:, slc]
-            i  = (ijk[:,0] > -1)
-
-            # fill in data
-            subcorticals_vol[ijk[i, 0], ijk[i, 1], ijk[i, 2], :]=bm_data[:,i].T
-
-        # save as nii
-        nii_vol_4d = nb.Nifti1Image(subcorticals_vol,bmf.affine)
-        return nii_vol_4d
-
-def surf_from_cifti(cifti,
-                    struct_names=['CIFTI_STRUCTURE_CORTEX_LEFT',
-                                    'CIFTI_STRUCTURE_CORTEX_RIGHT']):
-        """ Gets the data for cortical surface vertices (Left and Right)
-
-        Args:
-            cifti (cifti2Image):
-                Input cifti that contains surface data
-            struct_names (list):
-                Names of anatomical structures (in cifti format).
-                Defaults to left and right hemisphere
-        Returns:
-            list of ndarrays:
-                Data for all surface, with data x numVert for each surface
-        """
-        # get brain axis models
-        bmf = cifti.header.get_axis(1)
-        # print(dir(bmf))
-        # get the data array with all the time points, all the structures
-        ts_array = cifti.get_fdata()
-        ts_list = []
-        for idx, (nam,slc,bm) in enumerate(bmf.iter_structures()):
-            # just get the cortical surfaces
-            if nam in struct_names:
-                values = np.full((ts_array.shape[0],bmf.nvertices[nam]),np.nan)
-                # get the values corresponding to the brain model
-                values[:,bm.vertex] = ts_array[:, slc]
-                ts_list.append(values)
-            else:
-                break
-        return ts_list
-
-def cifti_surf_to_gifti(cifti_img, type = "label", label_names = [], column_names = []):
-    """
-    takes in a cifti image for left and right cortical hemispheres and convert it to gii
+    Returns:
+        _type_: _description_
     """
     img = surf_from_cifti(cifti_img,
                 struct_names=['CIFTI_STRUCTURE_CORTEX_LEFT',
                                 'CIFTI_STRUCTURE_CORTEX_RIGHT'])
-    
+
     gii = []
     for h, hem_name in enumerate(['CortexLeft', 'CortexRight']):
 
@@ -648,3 +605,179 @@ def cifti_surf_to_gifti(cifti_img, type = "label", label_names = [], column_name
                                         column_names=column_names
                                         ))
     return gii
+
+
+def make_label_cifti(data, bm_axis,
+                       labels=None,
+                       label_names=None,
+                       column_names=None,
+                       label_RGBA=None):
+    """Generates a label Cifti2Image from a numpy array
+    Args:
+        data (np.array):
+            num_vert x num_col data
+        bm_axis:
+            The corresponding brain model axis (voxels or vertices)
+        labels (list): Numerical values in data indicating the labels -
+            defaults to np.unique(data)
+        label_names (list):
+            List of strings for names for labels
+        column_names (list):
+            List of strings for names for columns
+        label_RGBA (list):
+            List of rgba vectors for labels
+    Returns:
+        cifti (GiftiImage): Label gifti image
+    """
+    if data.ndim == 1:
+        # reshape to (1, num_vertices)
+        data = data.reshape(-1, 1)
+
+    num_verts, num_cols = data.shape
+    if labels is None:
+        labels = np.unique(data)
+    num_labels = len(labels)
+
+    # Create naming and coloring if not specified in varargin
+    # Make columnNames if empty
+    if column_names is None:
+        column_names = []
+        for i in range(num_cols):
+            column_names.append("col_{:02d}".format(i + 1))
+
+    # Determine color scale if empty
+    if label_RGBA is None:
+        label_RGBA = [(0.0, 0.0, 0.0, 0.0)]
+        if 0 in labels:
+            num_labels -= 1
+        hsv = plt.cm.get_cmap('hsv', num_labels)
+        color = hsv(np.linspace(0, 1, num_labels))
+        # Shuffle the order so that colors are more visible
+        color = color[np.random.permutation(num_labels)]
+        for i in range(num_labels):
+            label_RGBA.append((color[i][0],
+                               color[i][1],
+                               color[i][2],
+                               color[i][3]))
+
+    # Create label names from numerical values
+    if label_names is None:
+        label_names = ['???']
+        for i in labels:
+            if i == 0:
+                pass
+            else:
+                label_names.append("label-{:02d}".format(i))
+
+    assert len(label_RGBA) == len(label_names), \
+        "The number of parcel labels must match the length of colors!"
+    labelDict = []
+    for i, nam in enumerate(label_names):
+        labelDict.append((nam, label_RGBA[i]))
+
+    labelAxis = nb.cifti2.LabelAxis(column_names, dict(enumerate(labelDict)))
+    header = nb.Cifti2Header.from_axes((labelAxis, bm_axis))
+    img = nb.Cifti2Image(dataobj=data, header=header)
+    return img
+
+def volume_from_cifti(cifti, struct_names=[]):
+        """ Gets the 4D nifti object containing the data
+        for all subcortical (volume-based) structures
+
+        Args:
+            cifti (ciftiImage):
+                cifti object containing the data
+            struct_names (list or None):
+                List of structure names that are included
+                defaults to None
+        Returns:
+            nii_vol(niftiImage):
+                nifti object containing the data
+        """
+        # get brain axis models
+        bmf = cifti.header.get_axis(1)
+        # get the data array with all the time points, all the structures
+        d_array = cifti.get_fdata(dtype=np.float32)
+
+        struct_names = [nb.cifti2.BrainModelAxis.to_cifti_brain_structure_name(n) for n in struct_names]
+
+        # initialize a matrix representing 4D data (x, y, z, time_point)
+        vol = np.zeros(bmf.volume_shape + (d_array.shape[0],))
+        for idx, (nam,slc,bm) in enumerate(bmf.iter_structures()):
+
+            if (any(s in nam for s in struct_names)):
+                ijk = bm.voxel
+                bm_data = d_array[:, slc]
+                i  = (ijk[:,0] > -1)
+
+                # fill in data
+                vol[ijk[i, 0], ijk[i, 1], ijk[i, 2], :]=bm_data[:,i].T
+
+        # save as nii
+        nii_vol_4d = nb.Nifti1Image(vol,bmf.affine)
+        return nii_vol_4d
+
+def surf_from_cifti(cifti,
+                    struct_names=['cortex_left','cortex_right']):
+        """ Gets the data for cortical surface vertices (Left and Right)
+
+        Args:
+            cifti (cifti2Image):
+                Input cifti that contains surface data
+            struct_names (list):
+                Names of anatomical structures (in cifti format).
+                Defaults to left and right hemisphere
+        Returns:
+            list of ndarrays:
+                Data for all surface, with data x numVert for each surface
+        """
+        # get brain axis models
+        bmf = cifti.header.get_axis(1)
+        # print(dir(bmf))
+        # get the data array with all the time points, all the structures
+        ts_array = cifti.get_fdata()
+        ts_list = []
+        # Ensure that structure names are in CIFTI format
+        struct_names = [nb.cifti2.BrainModelAxis.to_cifti_brain_structure_name(n) for n in struct_names]
+
+        for idx, (nam,slc,bm) in enumerate(bmf.iter_structures()):
+            # just get the cortical surfaces
+            if (any(s in nam for s in struct_names)):
+                values = np.full((ts_array.shape[0],bmf.nvertices[nam]),np.nan)
+                # get the values corresponding to the brain model
+                values[:,bm.vertex] = ts_array[:, slc]
+                ts_list.append(values)
+            else:
+                break
+        return ts_list
+
+
+def read_lut(fname):
+    L = pd.read_csv(fname,header=None,sep=' ',names=['ind','R','G','B','label'])
+    index = L.ind.to_numpy()
+    colors = np.c_[L.R.to_numpy(),L.G.to_numpy(),L.B.to_numpy()]
+    labels = list(L.label)
+    return index,colors,labels
+
+
+def save_lut(fname,index,colors,labels):
+    """Save a set of colors and labels as a LUT file
+
+    Args:
+        fname (_type_): File name
+        index (_type_): Numerical key
+        colors (_type_): List or RGB tuples 0-1
+        labels (_type_): Names of categories
+    """
+    # Save lut file
+    L=pd.DataFrame({
+            "key":index,
+            "R":colors[:,0].round(4),
+            "G":colors[:,1].round(4),
+            "B":colors[:,2].round(4),
+            "Name":labels})
+    L.to_csv(fname,header=None,sep=' ',index=False)
+
+    # Save cmap file (in accordance with FSLeyes-accepted colour maps)
+    L.drop('key', axis=1).drop('Name', axis=1).to_csv(fname + '.cmap', header=None, sep=' ', index=False)
+

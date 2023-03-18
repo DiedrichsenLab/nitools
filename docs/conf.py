@@ -39,8 +39,7 @@ extensions = ['sphinx.ext.napoleon',
               'sphinx.ext.mathjax',
               'sphinx.ext.intersphinx',
               'sphinx.ext.doctest',
-              'sphinx_rtd_theme',
-              'nbsphinx']
+              'sphinx_rtd_theme']
 
 napoleon_custom_sections = [('Returns', 'params_style')]
 
