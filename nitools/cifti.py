@@ -1,10 +1,84 @@
-"""Nitools: Cifti tools 
+""" General tools for manipulating Cifti2Images  
 """
 import numpy as np
 import nibabel as nb
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import pandas as pd
+
+
+def make_label_cifti(data, bm_axis,
+                       labels=None,
+                       label_names=None,
+                       column_names=None,
+                       label_RGBA=None):
+    """Generates a label Cifti2Image from a numpy array
+    Args:
+        data (np.array):
+            num_vert x num_col data
+        bm_axis:
+            The corresponding brain model axis (voxels or vertices)
+        labels (list): Numerical values in data indicating the labels -
+            defaults to np.unique(data)
+        label_names (list):
+            List of strings for names for labels
+        column_names (list):
+            List of strings for names for columns
+        label_RGBA (list):
+            List of rgba vectors for labels
+    Returns:
+        cifti (GiftiImage): Label gifti image
+    """
+    if data.ndim == 1:
+        # reshape to (1, num_vertices)
+        data = data.reshape(-1, 1)
+
+    num_verts, num_cols = data.shape
+    if labels is None:
+        labels = np.unique(data)
+    num_labels = len(labels)
+
+    # Create naming and coloring if not specified in varargin
+    # Make columnNames if empty
+    if column_names is None:
+        column_names = []
+        for i in range(num_cols):
+            column_names.append("col_{:02d}".format(i + 1))
+
+    # Determine color scale if empty
+    if label_RGBA is None:
+        label_RGBA = [(0.0, 0.0, 0.0, 0.0)]
+        if 0 in labels:
+            num_labels -= 1
+        hsv = plt.cm.get_cmap('hsv', num_labels)
+        color = hsv(np.linspace(0, 1, num_labels))
+        # Shuffle the order so that colors are more visible
+        color = color[np.random.permutation(num_labels)]
+        for i in range(num_labels):
+            label_RGBA.append((color[i][0],
+                               color[i][1],
+                               color[i][2],
+                               color[i][3]))
+
+    # Create label names from numerical values
+    if label_names is None:
+        label_names = ['???']
+        for i in labels:
+            if i == 0:
+                pass
+            else:
+                label_names.append("label-{:02d}".format(i))
+
+    assert len(label_RGBA) == len(label_names), \
+        "The number of parcel labels must match the length of colors!"
+    labelDict = []
+    for i, nam in enumerate(label_names):
+        labelDict.append((nam, label_RGBA[i]))
+
+    labelAxis = nb.cifti2.LabelAxis(column_names, dict(enumerate(labelDict)))
+    header = nb.Cifti2Header.from_axes((labelAxis, bm_axis))
+    img = nb.Cifti2Image(dataobj=data, header=header)
+    return img
 
 def join_giftis_to_cifti(giftis,mask=[None,None],seperate_labels=False,join_zero=False):
     """ Combines a left and right hemispheric Gifti file into a single Cifti
@@ -110,7 +184,7 @@ def split_cifti_to_giftis(cifti_img, type = "label", label_names = [], column_na
         column_names (list, optional): Column names for Gifti header. Defaults to [].
 
     Returns:
-        _type_: _description_
+        gii (list): List of two GiftiImages
     """
     img = surf_from_cifti(cifti_img,
                 struct_names=['CIFTI_STRUCTURE_CORTEX_LEFT',
@@ -134,80 +208,6 @@ def split_cifti_to_giftis(cifti_img, type = "label", label_names = [], column_na
                                         column_names=column_names
                                         ))
     return gii
-
-
-def make_label_cifti(data, bm_axis,
-                       labels=None,
-                       label_names=None,
-                       column_names=None,
-                       label_RGBA=None):
-    """Generates a label Cifti2Image from a numpy array
-    Args:
-        data (np.array):
-            num_vert x num_col data
-        bm_axis:
-            The corresponding brain model axis (voxels or vertices)
-        labels (list): Numerical values in data indicating the labels -
-            defaults to np.unique(data)
-        label_names (list):
-            List of strings for names for labels
-        column_names (list):
-            List of strings for names for columns
-        label_RGBA (list):
-            List of rgba vectors for labels
-    Returns:
-        cifti (GiftiImage): Label gifti image
-    """
-    if data.ndim == 1:
-        # reshape to (1, num_vertices)
-        data = data.reshape(-1, 1)
-
-    num_verts, num_cols = data.shape
-    if labels is None:
-        labels = np.unique(data)
-    num_labels = len(labels)
-
-    # Create naming and coloring if not specified in varargin
-    # Make columnNames if empty
-    if column_names is None:
-        column_names = []
-        for i in range(num_cols):
-            column_names.append("col_{:02d}".format(i + 1))
-
-    # Determine color scale if empty
-    if label_RGBA is None:
-        label_RGBA = [(0.0, 0.0, 0.0, 0.0)]
-        if 0 in labels:
-            num_labels -= 1
-        hsv = plt.cm.get_cmap('hsv', num_labels)
-        color = hsv(np.linspace(0, 1, num_labels))
-        # Shuffle the order so that colors are more visible
-        color = color[np.random.permutation(num_labels)]
-        for i in range(num_labels):
-            label_RGBA.append((color[i][0],
-                               color[i][1],
-                               color[i][2],
-                               color[i][3]))
-
-    # Create label names from numerical values
-    if label_names is None:
-        label_names = ['???']
-        for i in labels:
-            if i == 0:
-                pass
-            else:
-                label_names.append("label-{:02d}".format(i))
-
-    assert len(label_RGBA) == len(label_names), \
-        "The number of parcel labels must match the length of colors!"
-    labelDict = []
-    for i, nam in enumerate(label_names):
-        labelDict.append((nam, label_RGBA[i]))
-
-    labelAxis = nb.cifti2.LabelAxis(column_names, dict(enumerate(labelDict)))
-    header = nb.Cifti2Header.from_axes((labelAxis, bm_axis))
-    img = nb.Cifti2Image(dataobj=data, header=header)
-    return img
 
 def volume_from_cifti(cifti, struct_names=[]):
         """ Gets the 4D nifti object containing the data

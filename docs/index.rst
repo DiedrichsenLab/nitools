@@ -17,37 +17,24 @@ To simply use it, you can install the package with pip:
 ``pip install neuroimagingtools``
 
 
-.. module:: volume
-
 Nifti and Volume functions
 --------------------------
-.. autofunction:: affine_transform
-.. autofunction:: affine_transform_mat
-.. autofunction:: coords_to_linvidxs
-.. autofunction:: euclidean_dist_sq
-.. autofunction:: sample_image
-.. autofunction:: check_voxel_range
+.. automodule:: volume
+    :members:
 
-.. module:: gifti
-
-Gifti and Surface functions
+Gifti functions
 ---------------------------
-.. autofunction:: make_func_gifti
-.. autofunction:: make_label_gifti
-.. autofunction:: get_gifti_data_matrix
-.. autofunction:: get_gifti_anatomical_struct
-.. autofunction:: get_gifti_column_names
-.. autofunction:: get_gifti_colortable
-.. autofunction:: get_gifti_labels
+.. automodule:: gifti
+    :members:
 
-.. module:: cifti
 
-Cifti and ROI functions
+Cifti functions
 -----------------------
 .. automodule:: cifti
     :members:
 
-
+Other file formats
+-----------------------
 .. automodule:: other
     :members:
 

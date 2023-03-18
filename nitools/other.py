@@ -1,4 +1,4 @@
-"""Nitools: Other
+""" Other neuroimaging file formats
 """
 import numpy as np
 import nibabel as nb
@@ -7,6 +7,16 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 def read_lut(fname):
+    """Reads a Lookuptable file
+
+    Args:
+        fname (str): Filename
+
+    Returns:
+        index (ndarray): Numerical keys
+        colors (ndarray): N x 3 ndarray of colors 
+        labels (list): List of labels 
+    """
     L = pd.read_csv(fname,header=None,sep=' ',names=['ind','R','G','B','label'])
     index = L.ind.to_numpy()
     colors = np.c_[L.R.to_numpy(),L.G.to_numpy(),L.B.to_numpy()]
@@ -18,10 +28,10 @@ def save_lut(fname,index,colors,labels):
     """Save a set of colors and labels as a LUT file
 
     Args:
-        fname (_type_): File name
-        index (_type_): Numerical key
-        colors (_type_): List or RGB tuples 0-1
-        labels (_type_): Names of categories
+        fname (str): File name
+        index (ndarray): Numerical key
+        colors (ndarray): List or RGB tuples 0-1
+        labels (list): Names of categories
     """
     # Save lut file
     L=pd.DataFrame({

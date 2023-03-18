@@ -41,6 +41,9 @@ extensions = ['sphinx.ext.napoleon',
               'sphinx.ext.doctest',
               'sphinx_rtd_theme']
 
+
+autodoc_member_order = 'bysource'
+
 napoleon_custom_sections = [('Returns', 'params_style')]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -69,7 +72,7 @@ html_static_path = ['_static']
 html_theme_options = {
     'collapse_navigation': False,
     'sticky_navigation': True,
-    'navigation_depth': 3,
+    'navigation_depth': 4,
     'includehidden': False,
     'titles_only': False
 }

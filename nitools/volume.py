@@ -1,4 +1,4 @@
-"""Nitools: Volume-utilities 
+"""Nifti and Volume-based tools for sampling and deforming
 """
 import numpy as np
 import nibabel as nb
