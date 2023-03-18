@@ -39,13 +39,13 @@ def make_parcel_gifti():
 def join_label_gifti():
     fname = [atlas_dir + '/Icosahedron-162.32k.L.label.gii',
              atlas_dir + '/Icosahedron-162.32k.R.label.gii']
-    cifti_img = nt.join_giftis(fname,seperate_labels = True,join_zero=True)
+    cifti_img = nt.join_giftis_to_cifti(fname,seperate_labels = True,join_zero=True)
     nb.save(cifti_img,base_dir+'/Icosahedron-162.dlabel.nii')
 
 def join_func_gifti():
     fname = [base_dir + '/wgroup.encode-rest.L.func.gii',
              base_dir + '/wgroup.encode-rest.R.func.gii']
-    cifti_img = nt.join_giftis(fname)
+    cifti_img = nt.join_giftis_to_cifti(fname)
     nb.save(cifti_img,base_dir+'/wgroup.encode-rest.dscalar.nii')
 
 
