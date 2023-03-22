@@ -77,7 +77,7 @@ def make_label_cifti(data, bm_axis,
 
     labelAxis = nb.cifti2.LabelAxis(column_names, dict(enumerate(labelDict)))
     header = nb.Cifti2Header.from_axes((labelAxis, bm_axis))
-    img = nb.Cifti2Image(dataobj=data, header=header)
+    img = nb.Cifti2Image(dataobj=data.T, header=header)
     return img
 
 def join_giftis_to_cifti(giftis,mask=[None,None],seperate_labels=False,join_zero=False):

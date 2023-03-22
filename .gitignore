@@ -3,6 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# User-specific stuff (pycharm and vscode):
+.idea/*
+.vscode/*
+
 # C extensions
 *.so
 
