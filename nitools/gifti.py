@@ -145,6 +145,79 @@ def make_label_gifti(
     gifti.labeltable.labels.extend(E_all)
     return gifti
 
+def make_surf_gifti(vertices, faces, normals, mat,
+                    anatomical_struct='CortexLeft'):
+    """ Generates a surface GiftiImage from a surface
+
+    Args:
+        vertices (np.array): num_vert x 3 array of vertices
+        faces (np.array): num_faces x 3 array of faces
+        normals (np.array): num_vert x 3 array of normals
+        mat (np.array): a 4x4 affine matrix
+        anatomical_struct: Anatomical Structure for the Meta-data
+
+    Returns:
+        gifti (GiftiImage): Surface gifti image
+
+    Examples:
+        1. Load `vertices` and `faces` from a surface file
+            surf = nb.load('sub-01.L.pial.32k.surf.gii')
+            vertices = surf.agg_data('NIFTI_INTENT_POINTSET')
+            faces = surf.agg_data('NIFTI_INTENT_TRIANGLE')
+
+        2.1 Load normals (from surf file directly if available)
+            normals = surf.agg_data('NIFTI_INTENT_NORMAL')
+
+        2.2 Load normals (from a separate file)
+            norm_file = 'sub-01.L.norm.32k.shape.gii'
+            normals = norm_file.agg_data()
+
+        3. Input `mat` is a 4x4 affine matrix, e.g.:
+            mat = np.eye(4)
+    """
+    data_list = [vertices, faces, normals, mat]
+    name = ['vertices', 'faces', 'normals', 'mat']
+
+    C = nb.gifti.GiftiMetaData.from_dict({
+    'AnatomicalStructurePrimary': anatomical_struct,
+    'encoding': 'XML_BASE64_GZIP'})
+
+    V = nb.gifti.GiftiDataArray(
+        data=vertices,
+        intent='NIFTI_INTENT_POINTSET',
+        datatype='NIFTI_TYPE_FLOAT32',
+        meta=nb.gifti.GiftiMetaData.from_dict({'Name': 'vertices'})
+    )
+
+    F = nb.gifti.GiftiDataArray(
+        data=faces,
+        intent='NIFTI_INTENT_TRIANGLE',
+        datatype='NIFTI_TYPE_FLOAT32',
+        meta=nb.gifti.GiftiMetaData.from_dict({'Name': 'faces'})
+    )
+
+    N = nb.gifti.GiftiDataArray(
+        data=normals,
+        intent='NIFTI_INTENT_VECTOR',
+        datatype='NIFTI_TYPE_FLOAT32',
+        meta=nb.gifti.GiftiMetaData.from_dict({'Name': 'normals'})
+    )
+
+    # M = nb.gifti.GiftiDataArray(
+    #     data=mat,
+    #     intent='NIFTI_INTENT_GENMATRIX',
+    #     datatype='NIFTI_TYPE_FLOAT32',
+    #     meta=nb.gifti.GiftiMetaData.from_dict({'Name': 'mat'})
+    # )
+
+    D = list()
+    D.append(V)
+    D.append(F)
+    D.append(N)
+    # D.append(M)
+
+    gifti = nb.gifti.GiftiImage(meta=C, darrays=D)
+    return gifti
 
 def get_gifti_data_matrix(gifti):
     """Returns the data matrix contained in a GiftiImage.
