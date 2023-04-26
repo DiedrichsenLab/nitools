@@ -279,3 +279,41 @@ def surf_from_cifti(cifti,
             else:
                 break
         return ts_list
+        
+def smooth_cifti(cifti_input, 
+                 cifti_output,
+                 left_surface, 
+                 right_surface, 
+                 surface_sigma = 2.0, 
+                 volume_sigma = 0.0, 
+                 direction = "COLUMN", 
+                 ):
+    """
+    smoothes a cifti file on the direction specified by "direction"
+    """
+    # to discard NaNs they will be converted to 0s before smoothing
+    # otherwise Nans will spread as a result of smoothing
+    cifti = nb.load(cifti_input)
+    ## create a mask for NaNs
+    mask = np.isnan(cifti.get_fdata())
+    ## create a temp cifti object and replace NaNs with 0s
+    cifti_tmp = nb.Cifti2Image(dataobj=np.nan_to_num(cifti.get_fdata()), header=cifti.header)
+    nb.save(cifti_tmp, 'temp.dscalar.nii')
+
+
+    # make up the command
+    # overwrite the temp file created
+    smooth_cmd = f"wb_command -cifti-smoothing 'temp.dscalar.nii' {surface_sigma} {volume_sigma} {direction} {cifti_output} -left-surface {left_surface} -right-surface {right_surface} -fix-zeros-surface"
+    subprocess.run(smooth_cmd, shell=True)
+
+    # remove the temp file
+    os.remove("temp.dscalar.nii")
+
+    # Replace 0s back to NaN (we don't want the 0s impact model learning)
+    C = nb.load(cifti_output)
+    data = C.get_fdata()
+    data[mask] = np.nan
+    C = nb.Cifti2Image(dataobj=data, header=C.header)
+    nb.save(C, cifti_output)
+
+    return
