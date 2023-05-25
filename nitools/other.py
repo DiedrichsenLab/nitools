@@ -42,6 +42,19 @@ def save_lut(fname,index,colors,labels):
             "Name":labels})
     L.to_csv(fname,header=None,sep=' ',index=False)
 
+
+def save_cmap(fname,colors):
+    """Save a set of colors to a FSLeyes compatible cmap file
+
+    Args:
+        fname (str): File name
+        colors (ndarray): List or RGB tuples 0-1
+    """
+    # Save lut file
+    L=pd.DataFrame({
+            "R":colors[:,0].round(4),
+            "G":colors[:,1].round(4),
+            "B":colors[:,2].round(4)})
     # Save cmap file (in accordance with FSLeyes-accepted colour maps)
-    L.drop('key', axis=1).drop('Name', axis=1).to_csv(fname + '.cmap', header=None, sep=' ', index=False)
+    L.to_csv(fname + '.cmap', header=None, sep=' ', index=False)
 
