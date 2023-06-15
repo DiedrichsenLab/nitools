@@ -249,10 +249,11 @@ def volume_from_cifti(cifti, struct_names=[]):
 def surf_from_cifti(cifti,
                     struct_names=['cortex_left','cortex_right']):
         """ Gets the data for cortical surface vertices (Left and Right)
-
+        from normal cifti or parcellated cifti
         Args:
             cifti (cifti2Image):
                 Input cifti that contains surface data
+                Dimension 0 is data, Dimension 1 is brain model or parcel
             struct_names (list):
                 Names of anatomical structures (in cifti format).
                 Defaults to left and right hemisphere
@@ -260,25 +261,33 @@ def surf_from_cifti(cifti,
             list of ndarrays:
                 Data for all surface, with data x numVert for each surface
         """
-        # get brain axis models
+        # get brain model or parcel axis
         bmf = cifti.header.get_axis(1)
         # print(dir(bmf))
-        # get the data array with all the time points, all the structures
-        ts_array = cifti.get_fdata()
-        ts_list = []
+        # get the data array for  all the structures
+        data_array = cifti.get_fdata()
+        data_list = []
         # Ensure that structure names are in CIFTI format
         struct_names = [nb.cifti2.BrainModelAxis.to_cifti_brain_structure_name(n) for n in struct_names]
 
-        for idx, (nam,slc,bm) in enumerate(bmf.iter_structures()):
-            # just get the cortical surfaces
-            if (any(s in nam for s in struct_names)):
-                values = np.full((ts_array.shape[0],bmf.nvertices[nam]),np.nan)
-                # get the values corresponding to the brain model
-                values[:,bm.vertex] = ts_array[:, slc]
-                ts_list.append(values)
-            else:
-                break
-        return ts_list
+        # For Brain model axis
+        if isinstance(bmf, nb.cifti2.BrainModelAxis):
+            for idx, (nam,slc,bm) in enumerate(bmf.iter_structures()):
+                # just get the cortical surfaces
+                if (any(s in nam for s in struct_names)):
+                    values = np.full((data_array.shape[0],bmf.nvertices[nam]),np.nan)
+                    # get the values corresponding to the brain model
+                    values[:,bm.vertex] = data_array[:, slc]
+                    data_list.append(values)
+        elif isinstance(bmf, nb.cifti2.ParcelsAxis):
+            parcels = bmf.vertices
+            for s in struct_names:
+                values = np.full((data_array.shape[0],bmf.nvertices[s]),np.nan)
+                for i,p in enumerate(parcels):
+                    if s in p.keys():
+                        values[:,p[s]]=data_array[:,i:i+1]
+                data_list.append(values)
+        return data_list
         
 def smooth_cifti(cifti_input, 
                  cifti_output,
