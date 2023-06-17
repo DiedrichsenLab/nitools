@@ -38,10 +38,6 @@ class Border:
         coords = np.sum(coords*weights,axis=1)
         return coords
 
-    def to_xml(self):
-        raise NotImplementedError
-        pass
-
 def read_borders(fname):
     """ Reads a Workbench border file
     from XML format into a list of Border objects
@@ -51,16 +47,45 @@ def read_borders(fname):
 
     Returns:
         borders (list): List of border objects
+        binfo (dict): Dictionary of border-file information
     """
     borders = []
     tree = ET.parse(fname)
     root = tree.getroot()
     for bclass in root:
-        for border in bclass:
-            for bp in border:
+        for bn,border in enumerate(bclass):
+            for i,bp in enumerate(border):
                 V = bp.findall('Vertices')[0]
                 W = bp.findall('Weights')[0]
                 vert = np.fromstring(V.text,sep=' ',dtype=int).reshape(-1,3)
                 weights = np.fromstring(W.text,sep=' ').reshape(-1,3)
-                borders.append(Border(border.get('Name'),vert,weights))
-    return borders
+                bb=Border(border.get('Name'),vert,weights)
+                bb.num = bn
+                bb.partnum = i
+                borders.append(bb)
+    return borders,root.attrib
+
+def save_borders(borders,binfo,fname):
+    root = ET.Element("BorderFile",attrib=binfo)
+    bclass = ET.SubElement(root, "Class", attrib={'Name':"Class1",
+                                                  "Red":"0",
+                                                  "Green":"0",
+                                                  "Blue":"0"})
+    current_name = ''
+    for b in borders:
+        if b.name !=current_name:
+            bo=ET.SubElement(bclass, "Border", attrib={'Name':b.name,
+                                                  "Red":"0",
+                                                  "Green":"0",
+                                                  "Blue":"0"})
+            current_name = b.name  
+        bp=ET.SubElement(bo, "BorderPart", attrib={'Closed':'False'})
+        V=ET.SubElement(bp, "Vertices")
+        V.text = np.array2string(b.vertices).replace('[','')
+        V.text = V.text.replace(']','')
+        W=ET.SubElement(bp, "Weights")
+        W.text = np.array2string(b.weights).replace('[','')
+        W.text = W.text.replace(']','')
+
+    tree = ET.ElementTree(root)
+    tree.write(fname)
