@@ -5,3 +5,5 @@ sphinx-copybutton
 matplotlib
 nibabel
 nbsphinx
+trimesh
+bezier

@@ -2,10 +2,10 @@
 """
 import numpy as np
 import nibabel as nb
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-import pandas as pd
 import xml.etree.ElementTree as ET
+import trimesh.triangles as tri
+import bezier as bz
+from copy import deepcopy
 
 class Border:
     """Border class
@@ -100,9 +100,10 @@ def save_borders(borders,binfo,fname):
 
 def project_border(XYZ,surf):
     """ Project a set of points onto a surface
+
     Args:
-        XYZ: Nx3 array of points
-        surf: nibabel surface object
+        XYZ (ndarray): Nx3 array of points
+        surf (GiftiImage): nibabel surface object
     Returns:
         vertices: Nx3 array of vertices
         weights: Nx3 array of weights
@@ -136,10 +137,11 @@ def project_border(XYZ,surf):
 
 def resample_border(border,surf,stepsize=5):
     """ Resample a border with a fixed step size
+
     Args:
-        border: Border object
-        surf: nibabel surface object
-        step: Step size in mm
+        border(Border): Border object
+        surf(GiftiImage): nibabel surface object
+        step(float): Step size in mm
     Returns:
         border: Border object
     """

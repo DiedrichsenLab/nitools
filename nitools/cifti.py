@@ -1,4 +1,4 @@
-""" General tools for manipulating Cifti2Images  
+""" General tools for manipulating Cifti2Images
 """
 import numpy as np
 import nibabel as nb
@@ -13,6 +13,7 @@ def make_label_cifti(data, bm_axis,
                        column_names=None,
                        label_RGBA=None):
     """Generates a label Cifti2Image from a numpy array
+
     Args:
         data (np.array):
             num_vert x num_col data
@@ -250,6 +251,7 @@ def surf_from_cifti(cifti,
                     struct_names=['cortex_left','cortex_right']):
         """ Gets the data for cortical surface vertices (Left and Right)
         from normal cifti or parcellated cifti
+
         Args:
             cifti (cifti2Image):
                 Input cifti that contains surface data
@@ -288,17 +290,26 @@ def surf_from_cifti(cifti,
                         values[:,p[s]]=data_array[:,i:i+1]
                 data_list.append(values)
         return data_list
-        
-def smooth_cifti(cifti_input, 
+
+def smooth_cifti(cifti_input,
                  cifti_output,
-                 left_surface, 
-                 right_surface, 
-                 surface_sigma = 2.0, 
-                 volume_sigma = 0.0, 
-                 direction = "COLUMN", 
+                 left_surface,
+                 right_surface,
+                 surface_sigma = 2.0,
+                 volume_sigma = 0.0,
+                 direction = "COLUMN",
                  ):
     """
     smoothes a cifti file on the direction specified by "direction"
+
+    Args:
+        cifti_input (str): path to the input cifti file
+        cifti_output (str): path to the output cifti file
+        left_surface (str): path to the left surface
+        right_surface (str): path to the right surface
+        surface_sigma (float): sigma for surface smoothing
+        volume_sigma (float): sigma for volume smoothing
+        direction (str): direction of smoothing, either "ROW" or "COLUMN"
     """
     # to discard NaNs they will be converted to 0s before smoothing
     # otherwise Nans will spread as a result of smoothing
