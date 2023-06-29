@@ -1,10 +1,9 @@
-"""NitoolsL Gifti functions 
+"""NitoolsL Gifti functions
 """
 import numpy as np
 import nibabel as nb
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-import pandas as pd
 
 def make_func_gifti(
     data,

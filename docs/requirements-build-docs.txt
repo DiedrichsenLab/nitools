@@ -7,3 +7,4 @@ nibabel
 nbsphinx
 trimesh
 bezier
+pandas

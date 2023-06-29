@@ -4,7 +4,6 @@ import numpy as np
 import nibabel as nb
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-import pandas as pd
 import nitools as nt
 
 def make_label_cifti(data, bm_axis,
