@@ -33,13 +33,15 @@ Cifti functions
 .. automodule:: cifti
     :members:
 
-Other file formats
+Color maps and files
 -----------------------
-.. automodule:: other
+.. automodule:: color
     :members:
 
-
-
+Border functions
+-----------------------
+.. automodule:: border
+    :members:
 
 
 * :ref:`genindex`

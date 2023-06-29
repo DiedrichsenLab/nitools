@@ -1,8 +1,13 @@
 import nitools as nt
 import nibabel as nb
 import trimesh.triangles as tri
+import bezier as bz
 import numpy as np
+import matplotlib.pyplot as plt
+from copy import deepcopy
+
 def test_border():
+    """ Test the border functions"""
     wdir = '/Users/jdiedrichsen/Dropbox (Diedrichsenlab)/projects/Atlas_templates/fs_LR_32/'
     fname = wdir + 'fs_LR.32k.L.border'
     sname = wdir + 'fs_LR.32k.R.flat.surf.gii'
@@ -11,27 +16,15 @@ def test_border():
     coords = borders[0].get_coords(surf)
     pass
 
-def project_border(XYZ,surf):
-    V,F=surf.agg_data()
-    triangles = V[F,:]
-    N = triangles.shape[0]
-    P = XYZ.shape[0]
-    vertices = np.zeros((P,3),dtype=int)
-    weights = np.zeros((P,3))
-    for n in range(P):
-        bary=tri.points_to_barycentric(triangles,np.tile(XYZ[n,:],(N,1)))   
-        idx=np.where(np.all(np.logical_and(bary>=0,bary<=1),axis=1))[0][0]
-        vertices[n,:] = F[idx,:]
-        weights[n,:] = bary[idx,:]
-    return vertices,weights
-
-if __name__=="__main__":
+def project_suit_borders():
+    """ Project the suit xyz borders onto the flat surface
+    """
     wdir = '/Users/jdiedrichsen/Python/SUITPy/SUITPy/surfaces/'
-    
+
     surf = nb.load(wdir+'FLAT.surf.gii')
     borders = np.genfromtxt(wdir+'borders.txt', delimiter=',')
     b2,b_info= nt.read_borders(wdir + 'fissures_flat.border')
-    v,w = project_border(borders,surf)
+    v,w = nt.project_border(borders,surf)
     i = 0
     for b in b2:
         N = b.vertices.shape[0]
@@ -39,4 +32,18 @@ if __name__=="__main__":
         b.weights = w[i:i+N,:]
         i = i+N
     nt.save_borders(b2,b_info,wdir+'fissures2_flat.border')
-    pass 
+
+def test_resample_border():
+    """ Test the resample border function"""
+    wdir = '/Users/jdiedrichsen/Python/SurfAnalysisPy/standard_mesh/fs_L/'
+    border,b_info = nt.read_borders(wdir+'fs_LR.32k.L.border')
+    surf = nb.load(wdir+'fs_LR.32k.L.sphere.surf.gii')
+    newborder = deepcopy(border)
+    for i,b in enumerate(border):
+        newborder[i].vertices,newborder[i].weights,coord = resample_border(b,surf)
+
+    nt.save_borders(newborder,b_info,wdir+'fs_LR.32k.L_resampled.border')
+
+if __name__=="__main__":
+    project_suit_borders()
+    # test_resample_border()

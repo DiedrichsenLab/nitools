@@ -27,8 +27,9 @@ pip install neuroimagingtools
 * volume_from_cifti: Extracts Nifti-volume data from a Cifti file
 * surf_from_cifti: Extract the surface-based data from a Cifti file
 
-### Other utilities
+### Color utilities
 * read_lut: Read a lookup table file
 * save_lut: Save a lookup table file
+* save_cmap: Save a FSLeyes colormap file
 For documentation, see:
 https://nitools.readthedocs.io/en/latest/#gifti-and-surface-functions
