@@ -1,4 +1,4 @@
-"""NitoolsL Gifti functions
+"""Nitools Gifti functions
 """
 import numpy as np
 import nibabel as nb

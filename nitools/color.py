@@ -1,9 +1,6 @@
 """ Other neuroimaging file formats
 """
 import numpy as np
-import nibabel as nb
-import matplotlib as mpl
-import matplotlib.pyplot as plt
 import pandas as pd
 
 def read_lut(fname):
@@ -14,8 +11,8 @@ def read_lut(fname):
 
     Returns:
         index (ndarray): Numerical keys
-        colors (ndarray): N x 3 ndarray of colors 
-        labels (list): List of labels 
+        colors (ndarray): N x 3 ndarray of colors
+        labels (list): List of labels
     """
     L = pd.read_csv(fname,header=None,sep=' ',names=['ind','R','G','B','label'])
     index = L.ind.to_numpy()

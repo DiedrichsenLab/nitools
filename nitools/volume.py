@@ -2,13 +2,10 @@
 """
 import numpy as np
 import nibabel as nb
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-import pandas as pd
 
 def affine_transform(x1, x2, x3, M):
     """
-    Returns affine transform of x in vector 
+    Returns affine transform of x in vector
 
     Args:
         x1 (np-array):
@@ -35,7 +32,7 @@ def affine_transform(x1, x2, x3, M):
 
 def affine_transform_mat(x, M):
     """
-    Returns affine transform of x in matrix form 
+    Returns affine transform of x in matrix form
 
     Args:
         x (np-array):
