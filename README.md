@@ -31,5 +31,15 @@ pip install neuroimagingtools
 * read_lut: Read a lookup table file
 * save_lut: Save a lookup table file
 * save_cmap: Save a FSLeyes colormap file
+
+### Border utilities
+* Border: Border class
+* Border.get_coords: Get coordinates for a border
+* read_borders: Read a workbench border file
+* save_borders: Save a workbench border file
+* project_border: Project coordinates to a surface
+* resample_border: Resample a border with regularly spacing
+
+
 For documentation, see:
-https://nitools.readthedocs.io/en/latest/#gifti-and-surface-functions
+https://nitools.readthedocs.io/en/latest/
