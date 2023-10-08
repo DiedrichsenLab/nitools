@@ -1,4 +1,4 @@
-"""NitoolsL Gifti functions 
+"""NitoolsL Gifti functions
 """
 import numpy as np
 import nibabel as nb
@@ -92,7 +92,7 @@ def make_label_gifti(
             assert len(labels) == len(column_names), "labels and column_names must be the same length"
         if label_RGBA is not None:
             assert len(labels) == len(label_RGBA), "labels and label_RGBA must be the same length"
-         
+
 
     num_verts, num_cols = data.shape
     if labels is None:
@@ -120,7 +120,7 @@ def make_label_gifti(
     if label_names is None:
         label_names = []
         for i in labels:
-            label_names.append("label-{:02d}".format(i))
+            label_names.append("label-{:02d}".format(int(i)))
 
     # Create label.gii structure
     C = nb.gifti.GiftiMetaData.from_dict({
