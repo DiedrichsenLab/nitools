@@ -23,7 +23,7 @@ copyright = '2022, Jörn Diedrichsen'
 author = 'Jörn Diedrichsen'
 
 # The full version, including alpha/beta/rc tags
-release = 'v.1.1.0'
+release = 'v.1.1.1'
 
 
 # -- General configuration ---------------------------------------------------
@@ -37,8 +37,7 @@ extensions = ['sphinx.ext.napoleon',
               'sphinx.ext.autosectionlabel',
               'sphinx.ext.mathjax',
               'sphinx.ext.intersphinx',
-              'sphinx.ext.doctest',
-              'sphinx_rtd_theme']
+              'sphinx.ext.doctest']
 
 
 autodoc_member_order = 'bysource'
