@@ -1,9 +1,12 @@
-numpy
-sphinx>=1.4
-sphinxcontrib-bibtex
-sphinx-copybutton
+sphinx
+sphinx-rtd-theme
 matplotlib
 nibabel
+numpy
+pandas
+scipy
+sphinxcontrib-bibtex
+sphinx-copybutton
 nbsphinx
 trimesh
 bezier
