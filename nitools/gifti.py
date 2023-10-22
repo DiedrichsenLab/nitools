@@ -71,9 +71,9 @@ def make_label_gifti(
         data (np.array):
              num_vert x num_col data
         anatomical_struct (string):
-            Anatomical Structure for the Meta-data default= 'Cerebellum'
-        labels (list): Numerical values in data indicating the labels -
-            defaults to np.unique(data)
+            Anatomical Structure for the Meta-data. default: 'Cerebellum'
+        labels (list):
+            Numerical values in data indicating the labels. default: np.unique(data)
         label_names (list):
             List of strings for names for labels
         column_names (list):
