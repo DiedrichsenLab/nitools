@@ -172,14 +172,13 @@ def join_giftis_to_cifti(giftis,mask=[None,None],seperate_labels=False,join_zero
     cifti_img = nb.Cifti2Image(dataobj=D,header=header)
     return cifti_img
 
-def split_cifti_to_giftis(cifti_img, type = "label", label_names = [], column_names = []):
-    """ Splits a Cifti files with cortical data into two gifti obebjects
+def split_cifti_to_giftis(cifti_img, type = "label", column_names = None):
+    """ Splits a Cifti files with cortical data into two gifti objects
 
     Args:
         cifti_img (nb.CiftiImage): C
         type (str): Type of data "label"/"func"
-        label_names (list, optional): Labelnames for Gifti header. Defaults to [].
-        column_names (list, optional): Column names for Gifti header. Defaults to [].
+        column_names (list, optional): Column names for Gifti header. Defaults to None.
 
     Returns:
         gii (list): List of two GiftiImages
@@ -192,12 +191,19 @@ def split_cifti_to_giftis(cifti_img, type = "label", label_names = [], column_na
     for h, hem_name in enumerate(['CortexLeft', 'CortexRight']):
 
         if type == "label":
+            # Extract the label information from the cifti
+            label_axis = cifti_img.header.get_axis(0)
+            label_dict = label_axis.get_element(0)[1]
+            label_values = list(label_dict.keys())
+            [label_names, label_RGBA] = zip(*label_dict.values())
+
             gii.append(nt.make_label_gifti(
                                             img[h].T,
                                             anatomical_struct=hem_name,
                                             label_names=label_names,
                                             column_names=column_names,
-                                            label_RGBA=[]
+                                            label_RGBA=label_RGBA,
+                                            labels=label_values
                                             ))
         elif type == "func":
             gii.append(nt.make_func_gifti(
