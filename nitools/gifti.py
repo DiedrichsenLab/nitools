@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 def make_func_gifti(
     data,
     anatomical_struct='Cerebellum',
-    column_names=[]
+    column_names=None
     ):
     """Generates a function GiftiImage from a numpy array
 
@@ -16,17 +16,23 @@ def make_func_gifti(
         data (np.array):
              num_vert x num_col data
         anatomical_struct (string):
-            Anatomical Structure for the Meta-data default= 'Cerebellum'
+            Anatomical Structure default= 'Cerebellum' 
         column_names (list):
             List of strings for names for columns
 
     Returns:
         FuncGifti (GiftiImage): functional Gifti Image
     """
+    
+    # Get data dimensions
+    if data.ndim == 1:
+        data = data.reshape(-1,1)
+    num_verts, num_cols = data.shape
+
     num_verts, num_cols = data.shape
     #
     # Make columnNames if empty
-    if len(column_names)==0:
+    if column_names is None:
         for i in range(num_cols):
             column_names.append("col_{:02d}".format(i+1))
 
@@ -92,8 +98,13 @@ def make_label_gifti(
         if label_RGBA is not None:
             assert len(labels) == len(label_RGBA), "labels and label_RGBA must be the same length"
 
-
+    # Get data dimensions
+    if data.ndim == 1:
+        data = data.reshape(-1,1)
     num_verts, num_cols = data.shape
+    data = data.astype(int)
+    
+    # If labels not given 
     if labels is None:
         labels = np.unique(data)
     num_labels = len(labels)
@@ -141,7 +152,7 @@ def make_label_gifti(
     D = list()
     for i in range(num_cols):
         d = nb.gifti.GiftiDataArray(
-            data=np.float32(data[:, i]),
+            data=np.uint8(data[:, i]),
             intent='NIFTI_INTENT_LABEL',
             datatype='NIFTI_TYPE_UINT8',
             meta=nb.gifti.GiftiMetaData.from_dict({'Name': column_names[i]})

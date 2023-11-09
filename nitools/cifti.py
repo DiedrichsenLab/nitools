@@ -79,7 +79,7 @@ def make_label_cifti(data, bm_axis,
     img = nb.Cifti2Image(dataobj=data.T, header=header)
     return img
 
-def join_giftis_to_cifti(giftis,mask=[None,None],seperate_labels=False,join_zero=False):
+def join_giftis_to_cifti(giftis,mask=[None,None],seperate_labels=False,join_zero=True):
     """ Combines a left and right hemispheric Gifti file into a single Cifti
     file that contains both hemisphere
 
@@ -93,10 +93,9 @@ def join_giftis_to_cifti(giftis,mask=[None,None],seperate_labels=False,join_zero
             Can be set to list of giftis, filesnames, or nd-arrays
         seperate_labels (bool, optional):
             False (default): Simple merges the two files
-            True: Offsets the label for the right hemisphere, and prepend a L/R to label
+            True: Offsets the label for the right hemisphere, and prepend a L/R to label (default = False)
         join_zero (bool, optional):
-            If set to true, the zero-label will be joined for the two hemispheres, resulting
-            label less overall. (default = False)
+            If separate labels, and joint_zero set to true, the zero-label will be joined for the two hemispheres, resulting label less overall. (default = True)
 
     Returns:
         cifti_img: Cifti-image
@@ -128,7 +127,7 @@ def join_giftis_to_cifti(giftis,mask=[None,None],seperate_labels=False,join_zero
                     names.append(md.value)
 
         # Check if Giftis are denoting left and right hemisphere
-        if get_gifti_anatomical_struct(GIF[h])!=hem_name_gifti[h]:
+        if nt.get_gifti_anatomical_struct(GIF[h])!=hem_name_gifti[h]:
             raise(NameError('Giftis should have anatomical structure CortexLeft/CortexRight'))
         # Get the data and make the brain model axis
         data.append(np.c_[GIF[h].agg_data()])
