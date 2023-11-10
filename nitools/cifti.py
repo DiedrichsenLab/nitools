@@ -26,7 +26,7 @@ def make_label_cifti(data, bm_axis,
         label_RGBA (list):
             List of rgba vectors for labels
     Returns:
-        cifti (GiftiImage): Label gifti image
+        cifti (GiftiImage): Label gifti image 
     """
     if data.ndim == 1:
         # reshape to (1, num_vertices)
