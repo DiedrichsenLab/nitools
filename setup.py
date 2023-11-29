@@ -1,23 +1,28 @@
 from distutils.core import setup
+
+with open('README.md') as fp:
+    LONG_DESCRIPTION = fp.read()
+
 setup(
-  name = 'neuroimagingtools',
-  packages = ['nitools'],
-  version = '1.1.1',
-  license='MIT',
-  description = 'Neuroimaging analysis tools',
-  author = 'Jörn Diedrichsen',
-  author_email = 'joern.diedrichsen@googlemail.com',
-  url = 'https://github.com/DiedrichsenLab/nitools',
-  download_url = 'https://github.com/DiedrichsenLab/nitools/archive/refs/tags/v1.1.1.tar.gz',
-  keywords = ['imaging analysis', 'nifti', 'gifti','cifti'],
-  install_requires=[
+    name = 'neuroimagingtools',
+    packages = ['nitools'],
+    version = '1.1.1',
+    license='MIT',
+    description = 'Neuroimaging analysis tools',
+    author = 'Jörn Diedrichsen',
+    author_email = 'joern.diedrichsen@googlemail.com',
+    url = 'https://github.com/DiedrichsenLab/nitools',
+    download_url = 'https://github.com/DiedrichsenLab/nitools/archive/refs/tags/v1.1.1.tar.gz',
+    long_description=LONG_DESCRIPTION,
+    keywords = ['imaging analysis', 'nifti', 'gifti','cifti'],
+    install_requires=[
           'bezier',
           'trimesh',
           'numpy',
           'matplotlib',
           'nibabel',
           'pandas'],
-  classifiers=[
+    classifiers=[
     'Development Status :: 4 - Beta',
     'Intended Audience :: Science/Research',
     'Intended Audience :: Developers',
@@ -27,6 +32,6 @@ setup(
     'Programming Language :: Python :: 3.7',
     'Programming Language :: Python :: 3.8',
     'Programming Language :: Python :: 3.9'
-  ],
-  python_requires='>=3.6'
+    ],
+    python_requires='>=3.6'
 )
