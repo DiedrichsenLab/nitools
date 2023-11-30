@@ -6,7 +6,7 @@ with open('README.rst') as fp:
 setup(
     name = 'neuroimagingtools',
     packages = ['nitools'],
-    version = '1.1.2',
+    version = '1.1.3',
     license='MIT',
     description = 'Neuroimaging analysis tools',
     author = 'Jörn Diedrichsen',
