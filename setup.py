@@ -6,7 +6,7 @@ with open('README.rst') as fp:
 setup(
     name = 'neuroimagingtools',
     packages = ['nitools'],
-    version = '1.1.3',
+    version = '1.1.4',
     license='MIT',
     description = 'Neuroimaging analysis tools',
     author = 'Jörn Diedrichsen',
@@ -16,12 +16,12 @@ setup(
     long_description=LONG_DESCRIPTION,
     keywords = ['imaging analysis', 'nifti', 'gifti','cifti'],
     install_requires=[
-          'bezier',
-          'trimesh',
-          'numpy',
-          'matplotlib',
-          'nibabel',
-          'pandas'],
+        'bezier >= 2021.2.12',
+        'trimesh >= 3.22.1',
+        'numpy >= 1.20.1',
+        'matplotlib >= 3.4.3',
+        'nibabel >= 4.0.2',
+        'pandas >= 1.3.2'],
     classifiers=[
     'Development Status :: 4 - Beta',
     'Intended Audience :: Science/Research',

@@ -1,7 +1,8 @@
 nitools
 =======
- Basic Neuroimaging functionality for Nifti, Gifti, Cifti
- Data structures. Basic useful functions missing from nibabel and nilearn
+
+Basic Neuroimaging functionality for Nifti, Gifti, Cifti
+Data structures. Basic useful functions missing from nibabel and nilearn
 
 Installation
 ------------
