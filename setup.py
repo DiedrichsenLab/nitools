@@ -12,7 +12,7 @@ setup(
     author = 'Jörn Diedrichsen',
     author_email = 'joern.diedrichsen@googlemail.com',
     url = 'https://github.com/DiedrichsenLab/nitools',
-    download_url = 'https://github.com/DiedrichsenLab/nitools/archive/refs/tags/v1.1.1.tar.gz',
+    download_url = 'https://github.com/DiedrichsenLab/nitools/archive/refs/tags/v1.1.2.tar.gz',
     long_description=LONG_DESCRIPTION,
     keywords = ['imaging analysis', 'nifti', 'gifti','cifti'],
     install_requires=[
