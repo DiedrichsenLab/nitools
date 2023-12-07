@@ -8,9 +8,19 @@ from copy import deepcopy
 
 def test_border():
     """ Test the border functions"""
-    wdir = '/Users/jdiedrichsen/Dropbox (Diedrichsenlab)/projects/Atlas_templates/fs_LR_32/'
+    wdir = '/Users/jdiedrichsen/Dropbox/projects/Atlas_templates/fs_LR_32/'
     fname = wdir + 'fs_LR.32k.L.border'
     sname = wdir + 'fs_LR.32k.R.flat.surf.gii'
+    borders = nt.read_borders(fname)
+    surf = nb.load(sname)
+    coords = borders[0].get_coords(surf)
+    pass
+
+def test_border_closed():
+    """ Test the border function on closed borders"""
+    wdir = '/Users/jdiedrichsen/Data/cerebellar_atlases/'
+    fname = wdir + 'Nettekoven_2023/atl-NettekovenSym32.border'
+    sname = wdir + 'tpl-SUIT_flat.surf.gii'
     borders = nt.read_borders(fname)
     surf = nb.load(sname)
     coords = borders[0].get_coords(surf)
@@ -41,9 +51,11 @@ def test_resample_border():
     newborder = deepcopy(border)
     for i,b in enumerate(border):
         newborder[i].vertices,newborder[i].weights,coord = resample_border(b,surf)
-
     nt.save_borders(newborder,b_info,wdir+'fs_LR.32k.L_resampled.border')
 
+
+
 if __name__=="__main__":
-    project_suit_borders()
+    # project_suit_borders()
     # test_resample_border()
+    test_border_closed()

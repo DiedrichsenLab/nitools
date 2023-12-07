@@ -52,17 +52,20 @@ def read_borders(fname):
     borders = []
     tree = ET.parse(fname)
     root = tree.getroot()
+    if root.tag != 'BorderFile':
+        raise ValueError('Not a valid border file')
     for bclass in root:
-        for bn,border in enumerate(bclass):
-            for i,bp in enumerate(border):
-                V = bp.findall('Vertices')[0]
-                W = bp.findall('Weights')[0]
-                vert = np.fromstring(V.text,sep=' ',dtype=int).reshape(-1,3)
-                weights = np.fromstring(W.text,sep=' ').reshape(-1,3)
-                bb=Border(border.get('Name'),vert,weights)
-                bb.num = bn
-                bb.partnum = i
-                borders.append(bb)
+        if bclass.tag == 'Class': # Ignore Metadata
+            for bn,border in enumerate(bclass):
+                for i,bp in enumerate(border):
+                    V = bp.findall('Vertices')[0]
+                    W = bp.findall('Weights')[0]
+                    vert = np.fromstring(V.text,sep=' ',dtype=int).reshape(-1,3)
+                    weights = np.fromstring(W.text,sep=' ').reshape(-1,3)
+                    bb=Border(border.get('Name'),vert,weights)
+                    bb.num = bn
+                    bb.partnum = i
+                    borders.append(bb)
     return borders,root.attrib
 
 def save_borders(borders,binfo,fname):
