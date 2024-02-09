@@ -3,8 +3,6 @@
 import numpy as np
 import nibabel as nb
 import xml.etree.ElementTree as ET
-import trimesh.triangles as tri
-import bezier as bz
 from copy import deepcopy
 
 class Border:
@@ -111,6 +109,7 @@ def project_border(XYZ,surf):
         vertices: Nx3 array of vertices
         weights: Nx3 array of weights
     """
+    import trimesh.triangles as tri # Dynamic import to avoid dependency
     V,F=surf.agg_data()
     # Get the triangle data
     triangles = V[F,:]
@@ -148,6 +147,7 @@ def resample_border(border,surf,stepsize=5):
     Returns:
         border: Border object
     """
+    import bezier as bz # Dynamic import to avoid dependency
     # Get the coordinates of the existing border
     xyz = border.get_coords(surf).T
     n_points = xyz.shape[1]
