@@ -286,3 +286,24 @@ def deform_image(source,deform,interpolation):
                     XYZ[:,:,:,0,2],interpolation)
     outimg = nb.Nifti1Image(data,deform.affine)
     return outimg
+
+def change_nifti_numformat(infile,
+                           outfile,
+                           new_numformat='uint16',
+                           typecast_data=True):
+    """Changes the number format of a nifti file and saves it.
+    Warning: typecast_data changes the data format and can lead to and wrap-around of values, as the data is typecasted as well. 
+    Args:
+        infile (str): file name of input file 
+        outfile (str): file name output file 
+        new_numformat (str): New number format. Defaults to 'uint16'.
+        type_cast_data (bool): If true, typecasts the data as well. 
+    """
+    A = nb.load(infile)
+    X = A.get_fdata()
+    if typecast_data: 
+        X = X.astype(new_numformat)
+    head = A.header.copy()
+    head.set_data_dtype(new_numformat)
+    B = nb.Nifti1Image(X,A.affine,header=A.header)
+    nb.save(B,outfile)
