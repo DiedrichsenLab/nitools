@@ -340,3 +340,97 @@ def smooth_cifti(cifti_input,
     nb.save(C, cifti_output)
 
     return
+
+def unpack_cifti(cifti_input,cifti_output
+                ):
+    """
+    unpacks parcels in pscalar ciftis into vertices/voxels(to be added) 
+
+    Args:
+        cifti_input (str): path to the input cifti file
+        cifti_output (str): path to the output cifti file
+    """
+    input_img = nb.load(cifti_input)
+    input_data = input_img.get_fdata()
+    
+    # get input cifti axes
+    header = input_img.header
+    row_axis = header.get_axis(index=0)
+    column_axis = header.get_axis(index=1)
+
+
+    # make output row axis 
+    row_labels = [row for row in row_axis]
+    row_labels_list = [x[0] for x in row_labels]
+    row_axis = nb.cifti2.ScalarAxis(row_labels_list)
+
+    # get shape of functional data for output
+    n_row = len(row_labels_list)
+    all_verts = []
+    for _,_, info_dict in column_axis:
+        vertices = info_dict.get('CIFTI_STRUCTURE_CORTEX_LEFT', [])
+        all_verts.extend(vertices)
+    max_vertex = max(all_verts)
+
+    # initilize data, indexing starts from 0 for vertices in surface space
+    A_L = np.full(shape = (n_row,max_vertex+1), fill_value= np.nan, dtype=np.float64)
+    A_R = np.full(shape = (n_row,max_vertex+1), fill_value= np.nan,dtype=np.float64)
+
+    # make dictionary for which parcels include which vertices and which scalar values
+    parcel_info = {}
+    for i, parcel in enumerate(column_axis):
+        hemisphere = 'left' if 'CIFTI_STRUCTURE_CORTEX_LEFT' in parcel[2] else 'right'
+        vertices = parcel[2].get(f'CIFTI_STRUCTURE_CORTEX_{hemisphere.upper()}', np.array([], dtype=int))
+        
+        scalar_values = input_data[:, i]
+        
+        parcel_info[i] = {
+            'hemisphere': hemisphere,
+            'vertices': vertices,
+            'scalar_values': scalar_values,
+    }
+
+    # map values into vertices of the initilized array
+    for i, parcel in parcel_info.items():
+        hemisphere = parcel['hemisphere']
+        vertices = parcel['vertices']
+        scalar_values = parcel['scalar_values']
+
+        for vertex in vertices:
+            for row_idx ,scalar_value in enumerate(scalar_values):
+                if hemisphere == 'left':
+                    A_L[row_idx, vertex] = scalar_values[row_idx]
+                elif hemisphere == 'right':
+                    A_R[row_idx, vertex] = scalar_values[row_idx]
+
+    # remove nan vertices (for efficiency)
+    nan_columns_L = np.all(np.isnan(A_L), axis=0)
+    A_L_reduced = A_L[:, ~nan_columns_L]
+
+    nan_columns_R = np.all(np.isnan(A_R), axis=0)
+    A_R_reduced = A_R[:, ~nan_columns_R]
+
+    # final data array
+    A = np.concatenate([A_L_reduced,A_R_reduced],axis =1)
+
+    # make masks for brain model axis
+    vertex_indices_L = np.where(~nan_columns_L)[0]  
+    mask_L = np.zeros(max_vertex + 1, dtype=bool)
+    mask_L[vertex_indices_L] = True  
+
+    vertex_indices_R = np.where(~nan_columns_R)[0]  
+    mask_R = np.zeros(max_vertex + 1, dtype=bool)
+    mask_R[vertex_indices_R] = True
+
+    # create brain model axes
+    bm = nb.cifti2.BrainModelAxis.from_mask(
+                    mask_L, name='cortex_left')
+    bm = bm + nb.cifti2.BrainModelAxis.from_mask(
+                    mask_R, name='cortex_right')
+    
+    #make img and save
+    header = nb.Cifti2Header.from_axes((row_axis, bm))
+    cifti_img = nb.Cifti2Image(A, header=header)
+    nb.save(cifti_img,cifti_output)
+
+    return
