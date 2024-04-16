@@ -305,5 +305,5 @@ def change_nifti_numformat(infile,
         X = X.astype(new_numformat)
     head = A.header.copy()
     head.set_data_dtype(new_numformat)
-    B = nb.Nifti1Image(X,A.affine,header=A.header)
+    B = nb.Nifti1Image(X,A.affine,header=head)
     nb.save(B,outfile)
