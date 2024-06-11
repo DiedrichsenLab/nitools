@@ -292,12 +292,15 @@ def change_nifti_numformat(infile,
                            new_numformat='uint16',
                            typecast_data=True):
     """Changes the number format of a nifti file and saves it.
-    Warning: typecast_data changes the data format and can lead to and wrap-around of values, as the data is typecasted as well. 
+
     Args:
         infile (str): file name of input file 
         outfile (str): file name output file 
         new_numformat (str): New number format. Defaults to 'uint16'.
         type_cast_data (bool): If true, typecasts the data as well. 
+    Note:
+        typecast_data changes the data format and can lead to and wrap-around of values, as the data is typecasted as well. 
+        Do only when correcting a previous mistake in processing. 
     """
     A = nb.load(infile)
     X = A.get_fdata()
@@ -305,5 +308,5 @@ def change_nifti_numformat(infile,
         X = X.astype(new_numformat)
     head = A.header.copy()
     head.set_data_dtype(new_numformat)
-    B = nb.Nifti1Image(X,A.affine,header=A.header)
+    B = nb.Nifti1Image(X,A.affine,header=head)
     nb.save(B,outfile)
