@@ -54,12 +54,14 @@ class SpmGlm:
             s=reg_name.split(' ')
             self.run_number.append(int(s[0][3:-1]))
             self.beta_names.append(s[1])
-        # Get the raw data file names
+        self.run_number = np.array(self.run_number)
+        self.beta_names = np.array(self.beta_names)
+        # Get the raw data file name
         self.rawdata_files = SPM['xY']['P']
         # Get the necesssary matrices to reestimate the GLM for getting the residuals
         self.filter_matrices = [k['X0'] for k in SPM['xX']['K']]
         self.reg_of_interest = SPM['xX']['iC']
-        self.design_matrix = SPM['xX']['X']
+        self.design_matrix = SPM['xX']['xKXs']['X'] # Filtered and whitened design matrix
         self.eff_df = SPM['xX']['erdf'] # Effective degrees of freedom
         self.weight = SPM['xX']['W'] # Weight matrix for whitening
         self.pinvX = SPM['xX']['pKX'] # Pseudo-inverse of (filtered and weighted) design matrix
@@ -83,11 +85,14 @@ class SpmGlm:
         coords = nt.get_mask_coords(mask)
 
         # Generate the list of relevant beta images: 
-        beta_files = [f'{self.path}/{self.beta_files[i]}' for i in self.reg_of_interest-1]
-        data = nt.sample_images(beta_files,coords)
-        
-
-        return data
+        indx = self.reg_of_interest-1
+        beta_files = [f'{self.path}/{self.beta_files[i]}' for i in indx]
+        # Get the data from beta and ResMS files
+        rms_file = [f'{self.path}/ResMS.nii']
+        data = nt.sample_images(beta_files + rms_file,coords,use_dataobj=False)
+        # Return the data and the observation descriptors
+        info = {'reg_name': self.beta_names[indx], 'run_number': self.run_number[indx]} 
+        return data[:-1,:], data[-1,:], info
 
     def get_residuals(self,mask):
         """
@@ -98,10 +103,39 @@ class SpmGlm:
         Args:
             res_range (range): range of to be saved residual images per run
         """
+        # Sample the relevant time series data
         coords = nt.get_mask_coords(mask)
-        data = nt.sample_images(self.rawdata_files,coords)
+        data = nt.sample_images(self.rawdata_files,coords,use_dataobj=True)
 
-        return data
+        # Filter and temporal pre-whiten the data
+        fdata= self.spm_filter(self.weight @ data) # spm_filter
+
+        # Estimate the beta coefficients abd residuals 
+        beta = self.pinvX @ fdata
+        residuals = fdata - self.design_matrix @ beta
+
+        # Return the regressors of interest 
+        indx = self.reg_of_interest-1
+        info = {'reg_name': self.beta_names[indx], 'run_number': self.run_number[indx]} 
+        return residuals, beta[indx,:], info 
+
+    def spm_filter(self,data): 
+        """
+        Does high pass-filtering and temporal weighting of the data (indentical to spm_filter)
+
+        Args:
+            data (ndarray): 2d array of time series data (TxP)
+        Returns:   
+            data (ndarray): 2d array of time series data (TxP)
+        """
+        scan_bounds = self.nscans.cumsum()
+        scan_bounds = np.insert(scan_bounds,0,0) 
+
+        fdata = data.copy()
+        for i in range(self.nruns):
+            Y = fdata[scan_bounds[i]:scan_bounds[i+1],:];
+            Y = Y - self.filter_matrices[i] @ (self.filter_matrices[i].T @ Y)
+        return fdata
 
     def save2nifti(self, fpath: Optional[str]=None):
         """

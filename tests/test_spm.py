@@ -31,9 +31,16 @@ def test_sample_speed():
         print(f"Time for first run: {t2-t1}")
         print(f"Time for second run: {t3-t2}")
 
-
-
+def test_GLM():
+    basedir = '/Users/jdiedrichsen/Dropbox/projects/rsa_example_dataset'
+    spm = SpmGlm(basedir + '/glm_firstlevel')
+    spm.get_info_from_spm_mat()
+    [beta,resms,info] = spm.get_betas(basedir + '/anat/subcortical_mask.nii')
+    [residuals,beta1,info] = spm.get_residuals(basedir + '/anat/subcortical_mask.nii')
+    assert np.allclose(beta,beta1,atol=1e-4,equal_nan=True),'betas are not the same'
+    resms1 = np.mean(residuals**2,axis=0)/spm.eff_df
+    assert np.allclose(resms,resms1,atol=1e-4,equal_nan=True),'ResMS are not the same'
 
 if __name__=='__main__':
-    test_sample_speed()
+    test_GLM()
     pass
