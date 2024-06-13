@@ -2,6 +2,7 @@
 """
 import numpy as np
 import nibabel as nb
+import sys
 
 def affine_transform(x1, x2, x3, M):
     """
@@ -81,13 +82,12 @@ def coords_to_voxelidxs(coords,volDef):
 
     # map to 3xP matrix (P coordinates)
     coords = np.reshape(coords,[3,-1])
-    coords = np.vstack([coords,np.ones((1,rs[1]))])
 
-    ijk = np.linalg.solve(mat,coords)
-    ijk = np.rint(ijk)[0:3,:]
+    ijk = affine_transform_mat(coords,np.linalg.inv(mat)).astype(int)
     # Now set the indices out of range to -1
-    for i in range(3):
-        ijk[i,ijk[i,:]>=volDef.shape[i]]=-1
+    for d in range(3):
+        ijk[d,ijk[d,:]>=volDef.shape[d]]=-1
+        ijk[d,ijk[d,:]<0]=-1
     return ijk
 
 
@@ -310,3 +310,82 @@ def change_nifti_numformat(infile,
     head.set_data_dtype(new_numformat)
     B = nb.Nifti1Image(X,A.affine,header=head)
     nb.save(B,outfile)
+
+def sample_images(imgs,coords,use_dataobj=True):
+    """
+    Samples a list of images at a set of voxels (coordinates nearest neighbor)
+    3d images are being returned as a single value per voxel. 4d images are being returned as a vector per voxel. 
+    The function respects ths SPM-convention of specifying time slices 'img.nii,1' 
+    Note that either all or none of the image names need to follow the 'img.nii,1' convention. 
+    Args:
+        imgs (list):
+            List of Nifti file names (SPM convention for time slices is respected) 
+        coords (np-array):
+            3xN matrix of coordinates of to be sampled voxels 
+    Returns:
+        values (np-array):
+            Array contains all values in the image
+    """
+    n = len(imgs)
+    if ',' in imgs[0]: # SPM-convention of indicating time slice with ',x' notation 
+        fnames=[f.split(',')[0] for f in imgs]
+        slice=np.array([f.split(',')[1] for f in imgs],dtype=int)-1
+        unique_fnames,img_indx = np.unique(fnames,return_inverse=True)
+        input_vols = [nb.load(f) for f in unique_fnames]
+    else:       # Simply concatenate all the images
+        input_vols = [nb.load(f) for f in imgs]
+        slice = []
+        img_indx = []
+        for i,v in enumerate(input_vols):
+            if v.ndim==4:
+                img_indx.append(np.ones(v.shape[3],dtype=int)*i)
+                slice.append(np.arange(v.shape[3],dtype=int))
+            else:
+                img_indx.append(np.array([i],dtype=int))
+                slice.append(np.array([0],dtype=int))
+        slice = np.concatenate(slice)
+        img_indx = np.concatenate(img_indx) 
+    N = len(slice)
+    # Load the header from all the input files
+    voxels = coords_to_voxelidxs(coords,input_vols[0])
+    data = np.empty((N,coords.shape[1]))
+    if use_dataobj:
+        for i,v in enumerate(input_vols):
+            dindx = (img_indx == i)
+            data_block = v.dataobj[min(voxels[0]):max(voxels[0])+1,min(voxels[1]):max(voxels[1])+1,min(voxels[2]):max(voxels[2])+1]
+            D = data_block[voxels[0]-min(voxels[0]),voxels[1]-min(voxels[1]),voxels[2]-min(voxels[2])]
+            if v.ndim==3:
+                data[dindx,:]=D 
+            else:
+                data[dindx,:]=D[:,slice[dindx]].T
+    else:
+        for i,v in enumerate(input_vols):
+            dindx = (img_indx == i)
+            if v.ndim==3:
+                data[dindx,:]=v.get_fdata()[voxels[0],voxels[1],voxels[2]]
+            else:
+                D = v.get_fdata()[voxels[0],voxels[1],voxels[2]]
+                data[dindx,:]=D[:,slice[dindx]].T
+    return data
+
+
+def get_mask_coords(mask):
+    """ Returns the coordinates of the mask voxels
+
+    Args:
+        mask (str or NiftiImage or 3xP np-array):
+            Mask file name or NiftiImage or np-array
+    Returns:
+        coords (np-array):
+            3xP array of coordinates
+    """
+    if isinstance(mask, str):
+        mask = nb.load(mask)
+    if isinstance(mask, nb.nifti1.Nifti1Image):
+        [i,j,k]=np.where(mask.get_fdata())
+        coords = affine_transform_mat(np.array([i,j,k]),mask.affine)
+    elif isinstance(mask, np.ndarray) and (mask.shape[0]!=3):
+        coords = mask
+    else:
+        raise ValueError('Mask should be a 3xP array or coordinates, a nifti1image, or nifti file name')
+    return coords

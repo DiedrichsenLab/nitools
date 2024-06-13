@@ -79,19 +79,17 @@ class SpmGlm:
             resms (ndarray): 1d array of ResMS values
             obs_descriptors (dict): with lists reg_name and run_number (N long)
         """
-        if isinstance(mask, str):
-            mask = nb.load(mask)
-        if isinstance(mask, nb.nifti1.Nifti1Image):
-            [i,j,k]=np.where(mask.get_fdata())
-            coords = nt.affine_transform_mat(np.array([i,j,k]),mask.affine)
-        elif isinstance(mask, np.ndarray) and (mask.shape[0]!=3):
-            coords = mask
-        else:
-            raise ValueError('Mask should be a 3xP array or coordinates, a nifti1image, or nifti file name')
 
-        return self
+        coords = nt.get_mask_coords(mask)
 
-    def get_residuals(self):
+        # Generate the list of relevant beta images: 
+        beta_files = [f'{self.path}/{self.beta_files[i]}' for i in self.reg_of_interest-1]
+        data = nt.sample_images(beta_files,coords)
+        
+
+        return data
+
+    def get_residuals(self,mask):
         """
         Collects 3d images of a range of GLM residuals
         (typical SPM GLM results) and corresponding metadata
@@ -100,30 +98,10 @@ class SpmGlm:
         Args:
             res_range (range): range of to be saved residual images per run
         """
+        coords = nt.get_mask_coords(mask)
+        data = nt.sample_images(self.rawdata_files,coords)
 
-        residual_array_superset = []
-        self.dim4_descriptors = []
-        self.n_res = len(self.glob(join(self.path, "Res_*")))
-        if isinstance(res_range, range):
-            assert self.n_res >= max(res_range), \
-                "res_range outside of existing residuals"
-        else:
-            res_range = range(1, self.n_res+1)
-
-        run_counter = 0
-
-        run_counter += 1
-        for res in res_range:
-            res_image_path = join(self.path, "Res_" +
-                                            str(res).zfill(4))
-            res_image = self.nibabel.nifti1.load(res_image_path)
-            residual_array_superset.append(res_image.get_fdata())
-            self.dim4_descriptors.append("res_" + str(res).zfill(4) + "_run_" +
-                                    str(run_counter).zfill(2))
-        # Get affine matrix
-        self.subject_affine = res_image.affine.copy()
-        self.pooled_data_array = stack(residual_array_superset, axis=3)
-        return self
+        return data
 
     def save2nifti(self, fpath: Optional[str]=None):
         """
