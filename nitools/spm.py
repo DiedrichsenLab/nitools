@@ -4,9 +4,9 @@ Utility object that helps to extract time series data, beta coefficients, and re
 
 ## Usage
 ```
-betas = rsatoolbox.io.spm.load_betas('/dir/imgs/')
-betas.save2combo() ## stores /dir/imgs.nii.gz and /dir/imgs.csv
-betas.to_dataset() ## not implemented yet
+spm = SpmGlm('path/to/spm')
+spm.get_info_from_spm_mat()
+[residuals, beta, info] = spm.get_residuals('my_ROI_Mask.nii')
 ```
 """
 from __future__ import annotations
@@ -84,14 +84,14 @@ class SpmGlm:
 
         coords = nt.get_mask_coords(mask)
 
-        # Generate the list of relevant beta images: 
+        # Generate the list of relevant beta images:
         indx = self.reg_of_interest-1
         beta_files = [f'{self.path}/{self.beta_files[i]}' for i in indx]
         # Get the data from beta and ResMS files
         rms_file = [f'{self.path}/ResMS.nii']
         data = nt.sample_images(beta_files + rms_file,coords,use_dataobj=False)
         # Return the data and the observation descriptors
-        info = {'reg_name': self.beta_names[indx], 'run_number': self.run_number[indx]} 
+        info = {'reg_name': self.beta_names[indx], 'run_number': self.run_number[indx]}
         return data[:-1,:], data[-1,:], info
 
     def get_residuals(self,mask):
@@ -110,26 +110,26 @@ class SpmGlm:
         # Filter and temporal pre-whiten the data
         fdata= self.spm_filter(self.weight @ data) # spm_filter
 
-        # Estimate the beta coefficients abd residuals 
+        # Estimate the beta coefficients abd residuals
         beta = self.pinvX @ fdata
         residuals = fdata - self.design_matrix @ beta
 
-        # Return the regressors of interest 
+        # Return the regressors of interest
         indx = self.reg_of_interest-1
-        info = {'reg_name': self.beta_names[indx], 'run_number': self.run_number[indx]} 
-        return residuals, beta[indx,:], info 
+        info = {'reg_name': self.beta_names[indx], 'run_number': self.run_number[indx]}
+        return residuals, beta[indx,:], info
 
-    def spm_filter(self,data): 
+    def spm_filter(self,data):
         """
         Does high pass-filtering and temporal weighting of the data (indentical to spm_filter)
 
         Args:
             data (ndarray): 2d array of time series data (TxP)
-        Returns:   
+        Returns:
             data (ndarray): 2d array of time series data (TxP)
         """
         scan_bounds = self.nscans.cumsum()
-        scan_bounds = np.insert(scan_bounds,0,0) 
+        scan_bounds = np.insert(scan_bounds,0,0)
 
         fdata = data.copy()
         for i in range(self.nruns):
@@ -137,42 +137,3 @@ class SpmGlm:
             Y = Y - self.filter_matrices[i] @ (self.filter_matrices[i].T @ Y)
         return fdata
 
-    def save2nifti(self, fpath: Optional[str]=None):
-        """
-        Converts 4d array to subject-specific 4d NIfTi image
-        of beta coeffients or residuals and saves it to your OS
-
-        Args:
-            fpath (str):
-                path to which you want to save your data
-        """
-        fpath = fpath or (self.path + '.nii.gz')
-        pooled_data = self.nibabel.nifti1.Nifti1Image(
-            self.pooled_data_array,
-            self.affine
-        )
-        self.nifti_filename = join(fpath)
-        self.nibabel.nifti1.save(pooled_data, self.nifti_filename)
-
-    def save2csv(self, fpath: Optional[str]=None):
-        """
-        Saves subject-specific 4d NIfTi image descriptors to a csv file
-
-        Args:
-            descriptors (list of str):
-                descriptors of fourth a NIfTi file's 4th dimension
-            fpath (str):
-                path to which you want to save your data
-        """
-        fpath = fpath or (self.path + '.csv')
-        df = DataFrame({'descriptor': self.dim4_descriptors})
-        df.to_csv(fpath, header=False)
-
-    def save2combo(self, fpath: Optional[str]=None):
-        """
-        Combined saving of fmri data and descriptors
-        """
-        fpath_niigz = fpath or (self.path + '.nii.gz')
-        fpath_csv = fpath_niigz.replace('.nii.gz', '.csv')
-        self.save2nifti(fpath_niigz)
-        self.save2csv(fpath_csv)
