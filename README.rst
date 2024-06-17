@@ -16,8 +16,12 @@ Coordinate transforms and nifti (volume) utilities
 * affine_transform_mat: Affine coordinate transform with coordinates in matrix format
 * coords_to_linvidxs: Safe transform of coordinates to linear voxel indices
 * euclidean_dist_sq: Squared Euclidean distance between coordinate pairs
-* sample_img: Sample volume at arbitrary locations with nearest-neighbor or trilinear interpolation
+* sample_image: Sample a 3d volume at arbitrary locations with nearest-neighbor or trilinear interpolation
+* sample_images: Samples a set of 3d or 4d volumes at arbitrary locations efficiently
 * check_voxel_range: Check of voxel coordinates are within an image
+* deform_image: Moves a volume image according to a deformation field
+* change_nifti_numformat: Adjusts the numerical format of a Nifti image
+* get_mask_coords: Extracts the voxel coordinates from a mask image
 
 Gifti Utilities
 ---------------
