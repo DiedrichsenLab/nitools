@@ -41,6 +41,13 @@ def test_GLM():
     resms1 = np.mean(residuals**2,axis=0)/spm.eff_df
     assert np.allclose(resms,resms1,atol=1e-4,equal_nan=True),'ResMS are not the same'
 
+def test_relative_paths():
+    # If the data has been moved, we should adapt the paths stored in SPM.mat
+    basedir = os.path.expanduser('~/data/project')
+    spm = SpmGlm(basedir + '/glm_firstlevel')
+    spm.get_info_from_spm_mat()
+    assert spm.rawdata_files[0] == basedir+'/func/uas01_run01.nii,1  '
+
 if __name__=='__main__':
     test_GLM()
     pass
