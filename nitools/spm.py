@@ -14,6 +14,7 @@ from os.path import normpath, dirname
 import numpy as np
 import nitools as nt
 from scipy.io import loadmat
+import h5py
 
 
 class SpmGlm:
@@ -35,7 +36,15 @@ class SpmGlm:
         Args:
             spm_mat_path (str): _description_
         """
-        SPM = loadmat(f"{self.path}/SPM.mat", simplify_cells=True)['SPM']
+        try:
+            # SPM = loadmat(f"{self.path}/SPM.mat", simplify_cells=True)['SPM']
+            SPM = loadmat(f"{self.path}/SPM.mat", simplify_cells=True)
+            spm_file_loaded_with_scipyio = True
+        except Exception as e:
+            print(f"Error loading SPM.mat file. The file was saved as mat-file version 7.3 (see https://www.mathworks.com/help/matlab/import_export/mat-file-versions.html). Try loading the mat-file with Matlab, and saving it as mat-file version 7.0 intead. Use this command:  ")
+            print(f"cp {self.path}/SPM.mat {self.path}/SPM.mat.backup")
+            print(f"matlab -nodesktop -nosplash -r \"load('{self.path}/SPM.mat'); save('{self.path}/SPM.mat', '-struct', 'SPM', '-v7'); exit\"")
+            
         # Get basic information from SPM.mat
         self.nscans = SPM['nscan']
         self.nruns = len(self.nscans)
@@ -59,6 +68,9 @@ class SpmGlm:
         self.eff_df = SPM['xX']['erdf'] # Effective degrees of freedom
         self.weight = SPM['xX']['W'] # Weight matrix for whitening
         self.pinvX = SPM['xX']['pKX'] # Pseudo-inverse of (filtered and weighted) design matrix
+        pass
+
+
 
     def relocate_file(self, fpath: str) -> str:
         """SPM file entries to current project directory and OS.
@@ -146,6 +158,6 @@ class SpmGlm:
 
         fdata = data.copy()
         for i in range(self.nruns):
-            Y = fdata[scan_bounds[i]:scan_bounds[i+1],:];
+            Y = fdata[scan_bounds[i]:scan_bounds[i+1],:]
             Y = Y - self.filter_matrices[i] @ (self.filter_matrices[i].T @ Y)
         return fdata
