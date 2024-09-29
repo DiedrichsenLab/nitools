@@ -185,8 +185,9 @@ class SpmGlm:
         # Estimate the beta coefficients and residuals
         beta = self.pinvX @ data_filt
         residuals = data_filt - self.design_matrix @ beta
-        # Get estimated (predicted) timeseries 
-        data_hat = self.design_matrix[:, self.reg_of_interest] @ beta[self.reg_of_interest, :]
+        # Get estimated (predicted) timeseries (regressors of interest without the constant)
+        data_hat = self.design_matrix[:, self.reg_of_interest[:-1]] @ beta[self.reg_of_interest[:-1], :]
+
         # Get adjusted timeseries
         data_adj = data_hat + residuals
 
