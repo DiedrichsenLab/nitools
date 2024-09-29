@@ -68,7 +68,7 @@ class SpmGlm:
         self.eff_df = SPM['xX']['erdf'] # Effective degrees of freedom
         self.weight = SPM['xX']['W'] # Weight matrix for whitening
         self.pinvX = SPM['xX']['pKX'] # Pseudo-inverse of (filtered and weighted) design matrix
-        pass
+        
 
 
 
@@ -135,7 +135,7 @@ class SpmGlm:
         # Filter and temporal pre-whiten the data
         fdata= self.spm_filter(self.weight @ data) # spm_filter
 
-        # Estimate the beta coefficients abd residuals
+        # Estimate the beta coefficients and residuals
         beta = self.pinvX @ fdata
         residuals = fdata - self.design_matrix @ beta
 
@@ -159,5 +159,39 @@ class SpmGlm:
         fdata = data.copy()
         for i in range(self.nruns):
             Y = fdata[scan_bounds[i]:scan_bounds[i+1],:]
-            Y = Y - self.filter_matrices[i] @ (self.filter_matrices[i].T @ Y)
+            if self.filter_matrices[i].size > 0:
+                # Only apply with filter matrices are not empty
+                Y = Y - self.filter_matrices[i] @ (self.filter_matrices[i].T @ Y)
         return fdata
+
+    def rerun_glm(self,data):
+        """
+        Re-estimate the GLM on new data
+
+        Args:
+            data (ndarray): 2d array of time series data (TxP)
+        Returns:
+            beta (ndarray): 2d array of beta coefficients (PxQ)
+            info (dict): with lists reg_name and run_number (Q long)
+            data_filt (ndarray): 2d array of filtered time series data (TxP)
+            data_hat (ndarray): 2d array of predicted time series data (TxP)
+            data_adj (ndarray): 2d array of adjusted time series data (TxP)
+            residuals (ndarray): 2d array of residuals (TxP)
+        """
+
+        # Filter and temporal pre-whiten the data
+        data_filt= self.spm_filter(self.weight @ data) # spm_filter
+
+        # Estimate the beta coefficients and residuals
+        beta = self.pinvX @ data_filt
+        residuals = data_filt - self.design_matrix @ beta
+        # Get estimated (predicted) timeseries 
+        data_hat = self.design_matrix[:, self.reg_of_interest] @ beta[self.reg_of_interest, :]
+        # Get adjusted timeseries
+        data_adj = data_hat + residuals
+
+        # Return the regressors of interest (apart from the constant)
+        indx = self.reg_of_interest-1
+        info = {'reg_name': self.beta_names[indx], 'run_number': self.run_number[indx]}
+        
+        return beta[indx,:], info, data_filt, data_hat, data_adj, residuals
