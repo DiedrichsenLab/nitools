@@ -14,7 +14,7 @@ from os.path import normpath, dirname
 import numpy as np
 import nitools as nt
 from scipy.io import loadmat
-import h5py
+import pandas as pd
 
 
 class SpmGlm:
@@ -193,6 +193,6 @@ class SpmGlm:
 
         # Return the regressors of interest (apart from the constant)
         indx = self.reg_of_interest-1
-        info = {'reg_name': self.beta_names[indx], 'run_number': self.run_number[indx]}
+        info = pd.DataFrame({'reg_name': self.beta_names[indx], 'run_number': self.run_number[indx]})
         
         return beta[indx,:], info, data_filt, data_hat, data_adj, residuals
