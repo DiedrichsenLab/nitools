@@ -166,7 +166,7 @@ class SpmGlm:
 
     def rerun_glm(self,data):
         """
-        Re-estimate the GLM on new data
+        Re-estimate the GLM (without hyperparameter estimation) on new data
 
         Args:
             data (ndarray): 2d array of time series data (TxP)
@@ -174,8 +174,10 @@ class SpmGlm:
             beta (ndarray): 2d array of beta coefficients (PxQ)
             info (dict): with lists reg_name and run_number (Q long)
             data_filt (ndarray): 2d array of filtered time series data (TxP)
-            data_hat (ndarray): 2d array of predicted time series data (TxP)
+            data_hat (ndarray): 2d array of predicted time series data (TxP) - 
+                This is predicted only using regressors of interest (without the constant or other nuisance regressors)
             data_adj (ndarray): 2d array of adjusted time series data (TxP)
+                This is filtered timeseries with constants and other nuisance regressors substrated out
             residuals (ndarray): 2d array of residuals (TxP)
         """
 
