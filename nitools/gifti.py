@@ -296,8 +296,9 @@ def get_gifti_colortable(gifti,ignore_zero=False):
         labels = labels[1:]
 
     cmap = mpl.colors.LinearSegmentedColormap.from_list('mylist', rgba, N=len(rgba))
-    mpl.cm.unregister_cmap("mycolormap")
-    mpl.cm.register_cmap("mycolormap", cmap)
+    # Removed - incomplatible with newer versions of matplotlib
+    # mpl.cm.unregister_cmap("mycolormap")
+    # mpl.cm.register_cmap("mycolormap", cmap)
 
     return rgba, cmap
 
