@@ -26,7 +26,7 @@ def make_label_cifti(data, bm_axis,
         label_RGBA (list):
             List of rgba vectors for labels
     Returns:
-        cifti (GiftiImage): Label gifti image 
+        cifti (GiftiImage): Label gifti image
     """
     if data.ndim == 1:
         # reshape to (1, num_vertices)
@@ -213,7 +213,7 @@ def split_cifti_to_giftis(cifti_img, type = "label", column_names = None):
                                         ))
     return gii
 
-def volume_from_cifti(cifti, struct_names=[]):
+def volume_from_cifti(cifti, struct_names=None):
         """ Gets the 4D nifti object containing the data
         for all subcortical (volume-based) structures
 
@@ -222,7 +222,7 @@ def volume_from_cifti(cifti, struct_names=[]):
                 cifti object containing the data
             struct_names (list or None):
                 List of structure names that are included
-                defaults to None
+                defaults to None (all)
         Returns:
             nii_vol(niftiImage):
                 nifti object containing the data
@@ -232,7 +232,10 @@ def volume_from_cifti(cifti, struct_names=[]):
         # get the data array with all the time points, all the structures
         d_array = cifti.get_fdata(dtype=np.float32)
 
-        struct_names = [nb.cifti2.BrainModelAxis.to_cifti_brain_structure_name(n) for n in struct_names]
+        if struct_names is None:
+            struct_names = [a for a,_,_ in bmf.iter_structures()]
+        else:
+            struct_names = [nb.cifti2.BrainModelAxis.to_cifti_brain_structure_name(n) for n in struct_names]
 
         # initialize a matrix representing 4D data (x, y, z, time_point)
         vol = np.zeros(bmf.volume_shape + (d_array.shape[0],))
