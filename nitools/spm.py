@@ -65,6 +65,7 @@ class SpmGlm:
         self.filter_matrices = [k['X0'] for k in SPM['xX']['K']]
         self.reg_of_interest = SPM['xX']['iC']
         self.design_matrix = SPM['xX']['xKXs']['X'] # Filtered and whitened design matrix
+        self.design_matrix_raw = SPM['xX']['X'] # Raw design matrix
         self.eff_df = SPM['xX']['erdf'] # Effective degrees of freedom
         self.weight = SPM['xX']['W'] # Weight matrix for whitening
         self.pinvX = SPM['xX']['pKX'] # Pseudo-inverse of (filtered and weighted) design matrix
