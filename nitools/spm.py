@@ -38,7 +38,7 @@ class SpmGlm:
         """
         try:
             # SPM = loadmat(f"{self.path}/SPM.mat", simplify_cells=True)['SPM']
-            SPM = loadmat(f"{self.path}/SPM.mat", simplify_cells=True)
+            SPM = loadmat(f"{self.path}/SPM.mat", simplify_cells=True)['SPM']
             spm_file_loaded_with_scipyio = True
         except Exception as e:
             print(f"Error loading SPM.mat file. The file was saved as mat-file version 7.3 (see https://www.mathworks.com/help/matlab/import_export/mat-file-versions.html). Try loading the mat-file with Matlab, and saving it as mat-file version 7.0 intead. Use this command:  ")
@@ -87,8 +87,10 @@ class SpmGlm:
         """
         norm_fpath = fpath.replace('\\', '/')
         base_path = dirname(self.path).replace('\\', '/')
-        c = norm_fpath.find('func')
-        return base_path + '/' + norm_fpath[c:]
+        c = norm_fpath.find('imaging_data')
+        g = base_path.find('glm')
+        return base_path[:g] + norm_fpath[c:]
+        # return norm_fpath
 
     def get_betas(self,mask):
         """
@@ -150,19 +152,21 @@ class SpmGlm:
         data = nt.sample_images(self.rawdata_files, coords, use_dataobj=True)
 
         if stats == 'mean':
-            y_raw = data.mean(axis=0)
+            y_raw = data.mean(axis=1)
 
         # Filter and temporal pre-whiten the data
-        fdata = self.spm_filter(self.weight @ data)  # spm_filter
+        fdata = self.spm_filter(self.weight @ y_raw)  # spm_filter
 
         # Estimate the beta coefficients and residuals
         beta = self.pinvX @ fdata
-        yhat = self.design_matrix @ beta
+        y_hat = self.design_matrix @ beta
         residuals = fdata - self.design_matrix @ beta
 
-        yadj = yhat + residuals
+        y_adj = y_hat + residuals
 
-        return
+        indx = self.reg_of_interest - 1
+
+        return y_raw, y_adj, y_hat, residuals, beta[indx, :], fdata
 
 
 
