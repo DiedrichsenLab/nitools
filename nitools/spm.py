@@ -71,7 +71,6 @@ class SpmGlm:
         
 
 
-
     def relocate_file(self, fpath: str) -> str:
         """SPM file entries to current project directory and OS.
 
@@ -143,6 +142,29 @@ class SpmGlm:
         indx = self.reg_of_interest-1
         info = {'reg_name': self.beta_names[indx], 'run_number': self.run_number[indx]}
         return residuals, beta[indx,:], info
+
+    def region_getts(self, mask, stats='mean'):
+
+        # Sample the relevant time series data
+        coords = nt.get_mask_coords(mask)
+        data = nt.sample_images(self.rawdata_files, coords, use_dataobj=True)
+
+        if stats == 'mean':
+            y_raw = data.mean(axis=0)
+
+        # Filter and temporal pre-whiten the data
+        fdata = self.spm_filter(self.weight @ data)  # spm_filter
+
+        # Estimate the beta coefficients and residuals
+        beta = self.pinvX @ fdata
+        yhat = self.design_matrix @ beta
+        residuals = fdata - self.design_matrix @ beta
+
+        yadj = yhat + residuals
+
+        return
+
+
 
     def spm_filter(self,data):
         """
