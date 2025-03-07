@@ -277,4 +277,45 @@ class SpmGlm:
         img_beta = cifti2.Cifti2Image(dataobj=beta, header=header, extra=extra)
 
         return img_raw, img_beta, img_filt, img_hat, img_adj, img_res
-    
+
+
+def cut(X, pre, at, post, padding='last'):
+    """
+    Cut segment from signal X.
+
+    Parameters:
+    X : np.ndarray
+        Input data (rows: time frames, cols: features)
+    pre : int
+        Number of frames before `at`
+    at : int or None
+        Frame index at which to cut. If None or NaN, returns NaNs.
+    post : int
+        Number of frames after `at`
+    padding : str, optional
+        Padding strategy when time is not available ('nan', 'zero', 'last'). Default is 'last'.
+
+    Returns:
+    np.ndarray
+        The extracted segment of the trajectory.
+    """
+    if at is None or np.isnan(at):
+        return np.full((pre + post + 1, X.shape[1]), np.nan)
+
+    rows, cols = X.shape
+    start, end = max(0, at - pre), min(at + post + 1, rows)
+    y0 = X[start:end]
+
+    pad_before, pad_after = max(0, pre - (at - start)), max(0, post - (rows - end))
+
+    if padding == 'nan':
+        y = np.pad(y0, ((pad_before, pad_after), (0, 0)), mode='constant', constant_values=np.nan)
+    elif padding == 'zero':
+        y = np.pad(y0, ((pad_before, pad_after), (0, 0)), mode='constant', constant_values=0)
+    elif padding == 'last':
+        y = np.pad(y0, ((pad_before, pad_after), (0, 0)), mode='edge')
+    else:
+        raise ValueError("Unknown padding option. Use: 'nan', 'last', 'zero'")
+
+    return y
+
