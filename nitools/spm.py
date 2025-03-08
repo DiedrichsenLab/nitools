@@ -43,10 +43,12 @@ class SpmGlm:
             SPM = loadmat(f"{self.path}/SPM.mat", simplify_cells=True)['SPM']
             spm_file_loaded_with_scipyio = True
         except Exception as e:
-            print(f"Error loading SPM.mat file. The file was saved as mat-file version 7.3 (see https://www.mathworks.com/help/matlab/import_export/mat-file-versions.html). Try loading the mat-file with Matlab, and saving it as mat-file version 7.0 intead. Use this command:  ")
+            print(
+                f"Error loading SPM.mat file. The file was saved as mat-file version 7.3 (see https://www.mathworks.com/help/matlab/import_export/mat-file-versions.html). Try loading the mat-file with Matlab, and saving it as mat-file version 7.0 intead. Use this command:  ")
             print(f"cp {self.path}/SPM.mat {self.path}/SPM.mat.backup")
-            print(f"matlab -nodesktop -nosplash -r \"load('{self.path}/SPM.mat'); save('{self.path}/SPM.mat', '-struct', 'SPM', '-v7'); exit\"")
-            
+            print(
+                f"matlab -nodesktop -nosplash -r \"load('{self.path}/SPM.mat'); save('{self.path}/SPM.mat', '-struct', 'SPM', '-v7'); exit\"")
+
         # Get basic information from SPM.mat
         self.nscans = SPM['nscan']
         self.nruns = len(self.nscans)
@@ -56,7 +58,7 @@ class SpmGlm:
         self.run_number = []
         # Extract run number and condition name from SPM names
         for reg_name in SPM['xX']['name']:
-            s=reg_name.split(' ')
+            s = reg_name.split(' ')
             self.run_number.append(int(s[0][3:-1]))
             self.beta_names.append(s[1])
         self.run_number = np.array(self.run_number)
@@ -66,12 +68,10 @@ class SpmGlm:
         # Get the necesssary matrices to reestimate the GLM for getting the residuals
         self.filter_matrices = [k['X0'] for k in SPM['xX']['K']]
         self.reg_of_interest = SPM['xX']['iC']
-        self.design_matrix = SPM['xX']['xKXs']['X'] # Filtered and whitened design matrix
-        self.eff_df = SPM['xX']['erdf'] # Effective degrees of freedom
-        self.weight = SPM['xX']['W'] # Weight matrix for whitening
-        self.pinvX = SPM['xX']['pKX'] # Pseudo-inverse of (filtered and weighted) design matrix
-        
-
+        self.design_matrix = SPM['xX']['xKXs']['X']  # Filtered and whitened design matrix
+        self.eff_df = SPM['xX']['erdf']  # Effective degrees of freedom
+        self.weight = SPM['xX']['W']  # Weight matrix for whitening
+        self.pinvX = SPM['xX']['pKX']  # Pseudo-inverse of (filtered and weighted) design matrix
 
     def relocate_file(self, fpath: str) -> str:
         """SPM file entries to current project directory and OS.
@@ -94,7 +94,7 @@ class SpmGlm:
         return base_path[:g] + norm_fpath[c:]
         # return norm_fpath
 
-    def get_betas(self,mask):
+    def get_betas(self, mask):
         """
         Samples the beta images of an estimated SPM GLM at the mask locations
         also returns the ResMS values, and the obseration descriptors (run and condition) name
@@ -113,16 +113,16 @@ class SpmGlm:
         coords = nt.get_mask_coords(mask)
 
         # Generate the list of relevant beta images:
-        indx = self.reg_of_interest-1
+        indx = self.reg_of_interest - 1
         beta_files = [f'{self.path}/{self.beta_files[i]}' for i in indx]
         # Get the data from beta and ResMS files
         rms_file = [f'{self.path}/ResMS.nii']
-        data = nt.sample_images(beta_files + rms_file,coords,use_dataobj=False)
+        data = nt.sample_images(beta_files + rms_file, coords, use_dataobj=False)
         # Return the data and the observation descriptors
         info = {'reg_name': self.beta_names[indx], 'run_number': self.run_number[indx]}
-        return data[:-1,:], data[-1,:], info
+        return data[:-1, :], data[-1, :], info
 
-    def get_residuals(self,mask):
+    def get_residuals(self, mask):
         """
         Collects 3d images of a range of GLM residuals
         (typical SPM GLM results) and corresponding metadata
@@ -133,22 +133,21 @@ class SpmGlm:
         """
         # Sample the relevant time series data
         coords = nt.get_mask_coords(mask)
-        data = nt.sample_images(self.rawdata_files,coords,use_dataobj=True)
+        data = nt.sample_images(self.rawdata_files, coords, use_dataobj=True)
 
         # Filter and temporal pre-whiten the data
-        fdata= self.spm_filter(self.weight @ data) # spm_filter
+        fdata = self.spm_filter(self.weight @ data)  # spm_filter
 
         # Estimate the beta coefficients and residuals
         beta = self.pinvX @ fdata
         residuals = fdata - self.design_matrix @ beta
 
         # Return the regressors of interest
-        indx = self.reg_of_interest-1
+        indx = self.reg_of_interest - 1
         info = {'reg_name': self.beta_names[indx], 'run_number': self.run_number[indx]}
-        return residuals, beta[indx,:], info
+        return residuals, beta[indx, :], info
 
-
-    def spm_filter(self,data):
+    def spm_filter(self, data):
         """
         Does high pass-filtering and temporal weighting of the data (indentical to spm_filter)
 
@@ -158,17 +157,17 @@ class SpmGlm:
             data (ndarray): 2d array of time series data (TxP)
         """
         scan_bounds = self.nscans.cumsum()
-        scan_bounds = np.insert(scan_bounds,0,0)
+        scan_bounds = np.insert(scan_bounds, 0, 0)
 
         fdata = data.copy()
         for i in range(self.nruns):
-            Y = fdata[scan_bounds[i]:scan_bounds[i+1],:]
+            Y = fdata[scan_bounds[i]:scan_bounds[i + 1], :]
             if self.filter_matrices[i].size > 0:
                 # Only apply with filter matrices are not empty
                 Y = Y - self.filter_matrices[i] @ (self.filter_matrices[i].T @ Y)
         return fdata
 
-    def rerun_glm(self,data):
+    def rerun_glm(self, data):
         """
         Re-estimate the GLM (without hyperparameter estimation) on new data
 
@@ -186,7 +185,7 @@ class SpmGlm:
         """
 
         # Filter and temporal pre-whiten the data
-        data_filt= self.spm_filter(self.weight @ data) # spm_filter
+        data_filt = self.spm_filter(self.weight @ data)  # spm_filter
 
         # Estimate the beta coefficients and residuals
         beta = self.pinvX @ data_filt
@@ -198,10 +197,11 @@ class SpmGlm:
         data_adj = data_hat + residuals
 
         # Return the regressors of interest (apart from the constant)
-        indx = self.reg_of_interest-1
+        indx = self.reg_of_interest - 1
         info = pd.DataFrame({'reg_name': self.beta_names[indx], 'run_number': self.run_number[indx]})
-        
-        return beta[indx,:], info, data_filt, data_hat, data_adj, residuals
+
+        return beta[indx, :], info, data_filt, data_hat, data_adj, residuals
+
 
 def cut(X, pre, at, post, padding='last'):
     """
@@ -288,6 +288,3 @@ def avg_cut(X, pre, at, post, padding='last', stats='mean', axis=0, ResMS=None):
     y = np.vstack(y_tmp).mean(axis=0)
 
     return y
-
-
-
