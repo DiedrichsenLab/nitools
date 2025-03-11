@@ -114,12 +114,10 @@ class SpmGlm:
             mask = nb.load(mask)
         if isinstance(mask, nb.Nifti1Image):
             coords = nt.get_mask_coords(mask)
-        if isinstance(mask, np.ndarray):
+        if isinstance(mask, np.ndarray) and (mask.shape[0] == 3):
             coords = mask
-            try:
-                assert coords.shape[0] == 3
-            except AssertionError:
-                print(f"Error: Coords must have shape (3, N), but got {coords.shape} instead")
+        else:
+            raise ValueError('Mask should be a 3xP array or coordinates, a nifti1image, or nifti file name')
 
         # Generate the list of relevant beta images:
         indx = self.reg_of_interest - 1
