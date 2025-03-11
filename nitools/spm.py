@@ -110,7 +110,16 @@ class SpmGlm:
             obs_descriptors (dict): with lists reg_name and run_number (N long)
         """
 
-        coords = nt.get_mask_coords(mask)
+        if isinstance(mask, str):
+            mask = nb.load(mask)
+        if isinstance(mask, nb.Nifti1Image):
+            coords = nt.get_mask_coords(mask)
+        if isinstance(mask, np.ndarray):
+            coords = mask
+            try:
+                assert coords.shape[0] == 3
+            except AssertionError:
+                print(f"Error: Coords must have shape (3, N), but got {coords.shape} instead")
 
         # Generate the list of relevant beta images:
         indx = self.reg_of_interest - 1
@@ -132,7 +141,17 @@ class SpmGlm:
             res_range (range): range of to be saved residual images per run
         """
         # Sample the relevant time series data
-        coords = nt.get_mask_coords(mask)
+        if isinstance(mask, str):
+            mask = nb.load(mask)
+        if isinstance(mask, nb.Nifti1Image):
+            coords = nt.get_mask_coords(mask)
+        if isinstance(mask, np.ndarray):
+            coords = mask
+            try:
+                assert coords.shape[0] == 3
+            except AssertionError:
+                print(f"Error: Coords must have shape (3, N), but got {coords.shape} instead")
+
         data = nt.sample_images(self.rawdata_files, coords, use_dataobj=True)
 
         # Filter and temporal pre-whiten the data
