@@ -224,7 +224,7 @@ def cut(X, pre, at, post, padding='last'):
 
     Parameters:
     X : np.ndarray
-        Input data (rows: voxels, cols: time samples)
+        Input data (rows: time samples, cols: cols)
     pre : int
         N samples before `at`
     at : int or None
@@ -243,23 +243,23 @@ def cut(X, pre, at, post, padding='last'):
 
     rows, cols = X.shape
     start, end = max(0, at - pre), min(at + post + 1, rows)
-    y0 = X[:, start:end]
+    y0 = X[start:end, :]
 
-    pad_before, pad_after = max(0, pre - (at - start)), max(0, post - (rows - end))
+    pad_before, pad_after = max(0, pre - (at - start)), max(0, post - (rows - at - 1))
 
     if padding == 'nan':
-        y = np.pad(y0, ((pad_before, pad_after), (0, 0)), mode='constant', constant_values=np.nan)
+        y = np.pad(y0, ((pad_before, pad_after),(0, 0), ), mode='constant', constant_values=np.nan)
     elif padding == 'zero':
-        y = np.pad(y0, ((pad_before, pad_after), (0, 0)), mode='constant', constant_values=0)
+        y = np.pad(y0, ((pad_before, pad_after), (0, 0), ), mode='constant', constant_values=0)
     elif padding == 'last':
-        y = np.pad(y0, ((pad_before, pad_after), (0, 0)), mode='edge')
+        y = np.pad(y0, ( (pad_before, pad_after), (0, 0), ), mode='edge')
     else:
         raise ValueError("Unknown padding option. Use: 'nan', 'last', 'zero'")
 
     return y
 
 
-def avg_cut(X, pre, at, post, padding='last', stats='mean', axis=0, ResMS=None):
+def avg_cut(X, pre, at, post, padding='last'):
     """
     Takes a vector of sample locations (at) and returns the signal (X) aligned and averaged around those locations
     Args:
@@ -289,17 +289,10 @@ def avg_cut(X, pre, at, post, padding='last', stats='mean', axis=0, ResMS=None):
 
     """
 
-    if stats == 'mean':
-        X_avg = X.mean(axis=axis)
-    elif stats == 'whiten':
-        X_avg = (X / np.sqrt(ResMS)).mean(axis=axis)
-    else:
-        raise ValueError('Wrong argument for stats (permitted: mean, whiten)')
-
     y_tmp = []
     for a in at:
-        y_tmp.append(cut(X_avg, pre, a, post, padding))
+        y_tmp.append(cut(X, pre, a, post, padding))
 
-    y = np.vstack(y_tmp).mean(axis=0)
+    y = np.array(y_tmp).mean(axis=0)
 
     return y
