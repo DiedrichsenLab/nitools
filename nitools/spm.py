@@ -13,8 +13,7 @@ from __future__ import annotations
 from os.path import normpath, dirname
 import numpy as np
 import nibabel as nb
-from nibabel import cifti2
-import nitools as nt
+# import nitools as nt
 from scipy.io import loadmat
 import pandas as pd
 from scipy.stats import gamma
@@ -73,9 +72,12 @@ class SpmGlm:
         self.eff_df = SPM['xX']['erdf']  # Effective degrees of freedom
         self.weight = SPM['xX']['W']  # Weight matrix for whitening
         self.pinvX = SPM['xX']['pKX']  # Pseudo-inverse of (filtered and weighted) design matrix
+        self.X = SPM["xX"]["X"]
         self.bf = SPM['xBF']['bf']
-        self.U = SPM['xX']['U']
         self.Volterra = SPM['xBF']['Volterra']
+        self.Sess = SPM['Sess']
+        self.T = SPM["xBF"]["T"]
+        self.T0 = SPM["xBF"]["T0"]
 
 
     def relocate_file(self, fpath: str) -> str:
@@ -239,26 +241,29 @@ class SpmGlm:
         Xb = np.array([])
         iCs, iCc, iCb, iN = [], [], [], []
 
-        num_basis = self.bf.shape[1]
+        if self.bf.ndim == 2:
+            num_basis = self.bf.shape[1]
+        else:
+            num_basis = 1
         num_scan = self.nscans
 
-        for s in range(num_scan):
+        for s in range(len(self.Sess)):
             # Number of scans for this session
-            k = SPM["nscan"][s]
+            k = num_scan[s]
 
             # Get stimulus functions U
-            U = SPM["Sess"][s]["U"]
+            U = self.Sess[s]["U"]
             num_cond = len(U)
 
             # Convolve stimulus functions with basis functions
             X, Xn, Fc = spm_Volterra(U, self.bf, self.Volterra)
 
             # Resample regressors at acquisition times (32 bin offset)
-            X = X[np.arange(k) * SPM["xBF"]["T"] + SPM["xBF"]["T0"] + 32, :]
+            X = X[np.arange(k) * self.T + self.T0 + 32, :]
 
             # Orthogonalize within trial type
             for i in range(len(Fc)):
-                X[:, Fc[i]["i"]] = spm_orth(X[:, Fc[i]["i"]])
+                X[:, Fc[i]["i"][0] - 1] = spm_orth(X[:, Fc[i]["i"][0] - 1])
 
             # Get user-specified regressors
             C = SPM["Sess"][s]["C"]["C"]
@@ -279,12 +284,12 @@ class SpmGlm:
             iN.extend([0] * (num_cond * num_basis) + [1] * num_reg)
 
         # Finalize design matrix
-        SPM["xX"]["X"] = np.hstack([Xx, Xb])
+        self.X = np.hstack([Xx, Xb])
 
         if "W" in SPM["xX"]:
-            SPM["xX"]["xKXs"] = spm_sp("Set", spm_filter(SPM["xX"]["K"], SPM["xX"]["W"] @ SPM["xX"]["X"]))
+            SPM["xX"]["xKXs"] = spm_sp("Set", self.spm_filter(self.weight @ SPM["xX"]["X"]))
         else:
-            SPM["xX"]["xKXs"] = spm_sp("Set", spm_filter(SPM["xX"]["K"], SPM["xX"]["X"]))
+            SPM["xX"]["xKXs"] = spm_sp("Set", self.spm_filter(SPM["xX"]["X"]))
 
         SPM["xX"]["xKXs"]["X"] = SPM["xX"]["xKXs"]["X"].astype(float)
         SPM["xX"]["pKX"] = spm_sp("x-", SPM["xX"]["xKXs"])
@@ -532,15 +537,25 @@ def spm_Volterra(U, bf, V=1):
     Xname = []
     Fc = []
 
+    if bf.ndim == 2:
+        num_basis = bf.shape[1]
+    else:
+        num_basis = 1
+
     # First-order terms
     for i, u_dict in enumerate(U):
         ind = []
         ip = []
         for k in range(u_dict['u'].shape[1]):
-            for p in range(bf.shape[1]):
-                x = u_dict['u'][:, k]
-                d = np.arange(len(x))
-                x = np.convolve(x, bf[:, p], mode='full')[:len(d)]
+            for p in range(num_basis):
+                if num_basis > 1:
+                    x = u_dict['u'].todense()[:, k]
+                    d = np.arange(x.shape[0])
+                    x = np.convolve(x, bf[:, p], mode='full')[:len(d)]
+                else:
+                    x = u_dict['u'].todense()[:, k]
+                    d = np.arange(x.shape[0])
+                    x = np.convolve(x, bf, mode='full')[:len(d)]
                 X.append(x)
 
                 Xname.append(f"{u_dict['name'][k]}*bf({p + 1})")
@@ -620,6 +635,6 @@ def spm_hrf(RT, P=None, T=16):
     return hrf, p
 
 
-SPM = SpmGlm('/cifs/diedrichsen/data/SensoriMotorPrediction/smp2/glm12/subj103/')
+SPM = SpmGlm('/Volumes/diedrichsen_data$/data/SensoriMotorPrediction/smp2/glm12/subj103/')
 SPM.get_info_from_spm_mat()
-
+SPM.spmj_glm_convolve()
