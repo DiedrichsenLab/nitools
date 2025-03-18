@@ -17,6 +17,7 @@ from nibabel import cifti2
 import nitools as nt
 from scipy.io import loadmat
 import pandas as pd
+from scipy.stats import gamma
 
 
 class SpmGlm:
@@ -72,6 +73,10 @@ class SpmGlm:
         self.eff_df = SPM['xX']['erdf']  # Effective degrees of freedom
         self.weight = SPM['xX']['W']  # Weight matrix for whitening
         self.pinvX = SPM['xX']['pKX']  # Pseudo-inverse of (filtered and weighted) design matrix
+        self.bf = SPM['xBF']['bf']
+        self.U = SPM['xX']['U']
+        self.Volterra = SPM['xBF']['Volterra']
+
 
     def relocate_file(self, fpath: str) -> str:
         """SPM file entries to current project directory and OS.
@@ -217,6 +222,83 @@ class SpmGlm:
 
         return beta[indx, :], info, data_filt, data_hat, data_adj, residuals
 
+    def spmj_glm_convolve(self):
+        """
+        Re-convolves the SPM structure with a new basis function.
+
+        Parameters:
+        SPM : dict
+            SPM design structure.
+
+        Returns:
+        SPM : dict
+            Modified SPM structure.
+        """
+
+        Xx = np.array([])
+        Xb = np.array([])
+        iCs, iCc, iCb, iN = [], [], [], []
+
+        num_basis = self.bf.shape[1]
+        num_scan = self.nscans
+
+        for s in range(num_scan):
+            # Number of scans for this session
+            k = SPM["nscan"][s]
+
+            # Get stimulus functions U
+            U = SPM["Sess"][s]["U"]
+            num_cond = len(U)
+
+            # Convolve stimulus functions with basis functions
+            X, Xn, Fc = spm_Volterra(U, self.bf, self.Volterra)
+
+            # Resample regressors at acquisition times (32 bin offset)
+            X = X[np.arange(k) * SPM["xBF"]["T"] + SPM["xBF"]["T0"] + 32, :]
+
+            # Orthogonalize within trial type
+            for i in range(len(Fc)):
+                X[:, Fc[i]["i"]] = spm_orth(X[:, Fc[i]["i"]])
+
+            # Get user-specified regressors
+            C = SPM["Sess"][s]["C"]["C"]
+            num_reg = C.shape[1]
+            X = np.hstack([X, spm_detrend(C)])
+
+            # Store session info
+            if Xx.size == 0:
+                Xx = X
+                Xb = np.ones((k, 1))
+            else:
+                Xx = blkdiag([Xx, X])
+                Xb = blkdiag([Xb, np.ones((k, 1))])
+
+            iCs.extend([s + 1] * (X.shape[1] + num_reg))
+            iCc.extend(np.kron(np.arange(1, num_cond + 1), np.ones(num_basis, dtype=int)).tolist() + [0] * num_reg)
+            iCb.extend(np.kron(np.ones(num_cond, dtype=int), np.arange(1, num_basis + 1)).tolist() + [0] * num_reg)
+            iN.extend([0] * (num_cond * num_basis) + [1] * num_reg)
+
+        # Finalize design matrix
+        SPM["xX"]["X"] = np.hstack([Xx, Xb])
+
+        if "W" in SPM["xX"]:
+            SPM["xX"]["xKXs"] = spm_sp("Set", spm_filter(SPM["xX"]["K"], SPM["xX"]["W"] @ SPM["xX"]["X"]))
+        else:
+            SPM["xX"]["xKXs"] = spm_sp("Set", spm_filter(SPM["xX"]["K"], SPM["xX"]["X"]))
+
+        SPM["xX"]["xKXs"]["X"] = SPM["xX"]["xKXs"]["X"].astype(float)
+        SPM["xX"]["pKX"] = spm_sp("x-", SPM["xX"]["xKXs"])
+
+        # Indices for regressors
+        SPM["xX"]["iC"] = list(range(Xx.shape[1]))
+        SPM["xX"]["iB"] = list(range(Xb.shape[1])) + Xx.shape[1]
+        SPM["xX"]["iCs"] = iCs + list(range(1, num_scan + 1))
+        SPM["xX"]["iCc"] = iCc + [0] * num_scan
+        SPM["xX"]["iCb"] = iCb + [0] * num_scan
+        SPM["xX"]["iN"] = iN + [2] * num_scan
+
+        return SPM
+
 
 def cut(X, pre, at, post, padding='last'):
     """
@@ -296,3 +378,248 @@ def avg_cut(X, pre, at, post, padding='last'):
     y = np.array(y_tmp).mean(axis=0)
 
     return y
+
+
+def blkdiag(*matrices):
+    """
+    Constructs a block diagonal matrix from multiple input matrices.
+
+    Parameters:
+    *matrices : list of ndarray
+        Matrices to be placed on the block diagonal.
+
+    Returns:
+    y : ndarray
+        Block diagonal concatenated matrix.
+    """
+    if len(matrices) == 0:
+        return np.array([])
+
+    # Ensure all inputs are 2D arrays
+    matrices = [np.atleast_2d(m) for m in matrices]
+
+    # Determine final shape
+    rows = sum(m.shape[0] for m in matrices)
+    cols = sum(m.shape[1] for m in matrices)
+
+    # Preallocate result matrix with zeros
+    y = np.zeros((rows, cols), dtype=matrices[0].dtype)
+
+    # Fill the block diagonal
+    r_offset, c_offset = 0, 0
+    for m in matrices:
+        r, c = m.shape
+        y[r_offset:r_offset + r, c_offset:c_offset + c] = m
+        r_offset += r
+        c_offset += c
+
+    return y
+
+
+def spm_detrend(x, p=0):
+    """
+    Polynomial detrending over columns.
+
+    Parameters:
+    x : ndarray or list of ndarrays
+        Data matrix (or list of matrices).
+    p : int, optional
+        Order of polynomial (default: 0, i.e., mean subtraction).
+
+    Returns:
+    y : ndarray or list of ndarrays
+        Detrended data matrix.
+    """
+
+    # Handle case where x is a list (equivalent to cell arrays in MATLAB)
+    if isinstance(x, list):
+        return [spm_detrend(xi, p) for xi in x]
+
+    # Check dimensions
+    m, n = x.shape
+    if m == 0 or n == 0:
+        return np.array([])
+
+    # Mean subtraction (order 0)
+    if p == 0:
+        return x - np.mean(x, axis=0, keepdims=True)
+
+    # Polynomial adjustment
+    G = np.zeros((m, p + 1))
+    for i in range(p + 1):
+        G[:, i] = (np.arange(1, m + 1) ** i)
+
+    y = x - G @ np.linalg.pinv(G) @ x
+    return y
+
+
+def spm_orth(X, OPT='pad'):
+    """
+    Recursive Gram-Schmidt orthogonalisation of basis functions
+
+    Parameters:
+    X : ndarray
+        Input matrix
+    OPT : str, optional
+        'norm' for Euclidean normalization
+        'pad' for zero padding of null space (default)
+
+    Returns:
+    X : ndarray
+        Orthogonalized matrix
+    """
+    # Turn off warnings (equivalent to MATLAB warning('off','all'))
+    np.seterr(all='ignore')
+
+    n, m = X.shape
+    X = X[:, np.any(X, axis=0)]  # Remove zero columns
+    rankX = np.linalg.matrix_rank(X)
+
+    try:
+        x = X[:, [0]]
+        j = [0]
+
+        for i in range(1, X.shape[1]):
+            D = X[:, [i]]
+            D = D - x @ np.linalg.pinv(x) @ D
+
+            if np.linalg.norm(D, 1) > np.exp(-32):
+                x = np.hstack((x, D))
+                j.append(i)
+
+            if len(j) == rankX:
+                break
+    except:
+        x = np.zeros((n, 0))
+        j = []
+
+    # Restore warnings
+    np.seterr(all='warn')
+
+    # Normalization if requested
+    if OPT == 'pad':
+        X_out = np.zeros((n, m))
+        X_out[:, j] = x
+    elif OPT == 'norm':
+        X_out = x / np.linalg.norm(x, axis=0, keepdims=True)
+    else:
+        X_out = x
+
+    return X_out
+
+
+def spm_Volterra(U, bf, V=1):
+    """
+    Generalized convolution of inputs (U) with basis set (bf)
+
+    Parameters:
+    U : list of dict
+        Input structure array containing 'u' (time series) and 'name' (labels)
+    bf : ndarray
+        Basis functions
+    V : int, optional
+        Order of Volterra expansion (default: 1)
+
+    Returns:
+    X : ndarray
+        Design Matrix
+    Xname : list
+        Names of regressors (columns) in X
+    Fc : list of dict
+        Contains indices and names for each input
+    """
+    X = []
+    Xname = []
+    Fc = []
+
+    # First-order terms
+    for i, u_dict in enumerate(U):
+        ind = []
+        ip = []
+        for k in range(u_dict['u'].shape[1]):
+            for p in range(bf.shape[1]):
+                x = u_dict['u'][:, k]
+                d = np.arange(len(x))
+                x = np.convolve(x, bf[:, p], mode='full')[:len(d)]
+                X.append(x)
+
+                Xname.append(f"{u_dict['name'][k]}*bf({p + 1})")
+                ind.append(len(X))
+                ip.append(k + 1)
+
+        Fc.append({'i': ind, 'name': u_dict['name'][0], 'p': ip})
+
+    X = np.column_stack(X) if X else np.empty((len(U[0]['u']), 0))
+
+    # Return if first order
+    if V == 1:
+        return X, Xname, Fc
+
+    # Second-order terms
+    for i in range(len(U)):
+        for j in range(i, len(U)):
+            ind = []
+            ip = []
+            for p in range(bf.shape[1]):
+                for q in range(bf.shape[1]):
+                    x = U[i]['u'][:, 0]
+                    y = U[j]['u'][:, 0]
+                    x = np.convolve(x, bf[:, p], mode='full')[:len(d)]
+                    y = np.convolve(y, bf[:, q], mode='full')[:len(d)]
+                    X = np.column_stack((X, x * y))
+
+                    Xname.append(f"{U[i]['name'][0]}*bf({p + 1})x{U[j]['name'][0]}*bf({q + 1})")
+                    ind.append(X.shape[1])
+                    ip.append(1)
+
+            Fc.append({'i': ind, 'name': f"{U[i]['name'][0]}x{U[j]['name'][0]}", 'p': ip})
+
+    return X, Xname, Fc
+
+
+def spm_hrf(RT, P=None, T=16):
+    """
+    Haemodynamic response function (HRF)
+
+    Parameters:
+    RT : float
+        Scan repeat time (TR)
+    P : list or ndarray, optional
+        Parameters of the response function (two Gamma functions), defaults to [6, 16, 1, 1, 6, 0, 32]
+    T : int, optional
+        Microtime resolution (default: 16)
+
+    Returns:
+    hrf : ndarray
+        Hemodynamic response function
+    p : ndarray
+        Parameters of the response function
+    """
+    # Default parameters if not provided
+    if P is None:
+        P = [6, 16, 1, 1, 6, 0, 32]
+
+    # Ensure P has the correct length
+    p = np.array([6, 16, 1, 1, 6, 0, 32])
+    p[:len(P)] = P
+
+    # Microtime resolution
+    dt = RT / T
+    u = np.arange(0, np.ceil(p[6] / dt) + 1) - p[5] / dt
+
+    # Modelled hemodynamic response function (mixture of two gamma distributions)
+    hrf = (gamma.pdf(u, p[0] / p[2], scale=dt / p[2]) -
+           gamma.pdf(u, p[1] / p[3], scale=dt / p[3]) / p[4])
+
+    # Downsample to TR resolution
+    hrf = hrf[np.floor(np.arange(0, p[6] / RT + 1) * T).astype(int)]
+
+    # Normalize HRF
+    hrf = hrf / np.sum(hrf)
+
+    return hrf, p
+
+
+SPM = SpmGlm('/cifs/diedrichsen/data/SensoriMotorPrediction/smp2/glm12/subj103/')
+SPM.get_info_from_spm_mat()
+
