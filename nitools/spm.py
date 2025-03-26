@@ -230,13 +230,9 @@ class SpmGlm:
         """
         Re-convolves the SPM structure with a new basis function.
 
-        Parameters:
-        SPM : dict
-            SPM design structure.
+        Args:
+        bf (ndarray): new basis function (output of spm_hrf):
 
-        Returns:
-        SPM : dict
-            Modified SPM structure.
         """
 
         self.bf = bf
@@ -259,20 +255,20 @@ class SpmGlm:
             num_cond = len(U)
 
             # Convolve stimulus functions with basis functions
-            X, Xn, Fc = spm_Volterra(U, self.bf, self.Volterra)
+            X, Xn, Fc = _spm_Volterra(U, self.bf, self.Volterra)
 
             # Resample regressors at acquisition times (32 bin offset)
             X = X[np.arange(k) * self.T + self.T0 + 32, :]
 
             # Orthogonalize within trial type
             for i in range(len(Fc)):
-                X[:, Fc[i]["i"][0] - 1] = spm_orth(X[:, Fc[i]["i"][0] - 1])
+                X[:, Fc[i]["i"][0] - 1] = _spm_orth(X[:, Fc[i]["i"][0] - 1])
 
             # Get user-specified regressors
             C = self.Sess[s]["C"]["C"]
             if C.size > 0:
                 num_reg = C.shape[1]
-                X = np.hstack([X, spm_detrend(C)])
+                X = np.hstack([X, _spm_detrend(C)])
             else:
                 num_reg = 0
 
@@ -281,8 +277,8 @@ class SpmGlm:
                 Xx = X
                 Xb = np.ones((k, 1))
             else:
-                Xx = blkdiag([Xx, X])
-                Xb = blkdiag([Xb, np.ones((k, 1))])
+                Xx = _blkdiag([Xx, X])
+                Xb = _blkdiag([Xb, np.ones((k, 1))])
 
             # iCs.extend([s + 1] * (X.shape[1] + num_reg))
             # iCc.extend(np.kron(np.arange(1, num_cond + 1), np.ones(num_basis, dtype=int)).tolist() + [0] * num_reg)
@@ -310,6 +306,38 @@ class SpmGlm:
         # SPM["xX"]["iCc"] = iCc + [0] * num_scan
         # SPM["xX"]["iCb"] = iCb + [0] * num_scan
         # SPM["xX"]["iN"] = iN + [2] * num_scan
+
+    def update_hrf_params(self, P, mask_img):
+        """
+        Updates the HRF parameters of the SPM structure and return the timeseries calculated with the new HRF parameters.
+        Args:
+            P (ndarray): HRF parameters (SPM12 default: [6, 16, 1, 1, 6, 0, 32])
+            mask_img (str or Nifti1Image): mask image (e.g., ROI mask)
+        Returns:
+            data_filt (ndarray): 2d array of filtered time series data (TxP)
+            data_hat (ndarray): 2d array of predicted time series data (TxP) -
+                This is predicted only using regressors of interest (without the constant or other nuisance regressors)
+            data_adj (ndarray): 2d array of adjusted time series data (TxP)
+                This is filtered timeseries with constants and other nuisance regressors substrated out
+            residuals (ndarray): 2d array of residuals (TxP)
+        """
+        if isinstance(mask_img, str):
+            mask_img = nb.load(mask_img)
+        if isinstance(mask_img, nb.Nifti1Image):
+            coords = nt.get_mask_coords(mask_img)
+        else:
+            raise TypeError("mask_img must be a nifti1 image or a string")
+
+        hrf, p = spm_hrf(1, P)
+        SPM.convolve_glm(hrf)
+
+        # get raw time series in roi
+        y_raw = nt.sample_images(self.rawdata_files, coords)
+
+        # rerun glm
+        _, info, data_filt, data_hat, data_adj, residuals = self.rerun_glm(y_raw)
+
+        return data_filt, data_hat, data_adj, residuals
 
 
 def cut(X, pre, at, post, padding='last'):
@@ -379,7 +407,7 @@ def avg_cut(X, pre, at, post, padding='last'):
     Returns:
 
         y (np.array):
-            Signal cut and averaged around locations at.
+            Signal cut around locations at.
 
     """
 
@@ -390,12 +418,12 @@ def avg_cut(X, pre, at, post, padding='last'):
     return np.array(y_tmp)
 
 
-def blkdiag(matrices):
+def _blkdiag(matrices):
     """
     Constructs a block diagonal matrix from multiple input matrices.
 
     Parameters:
-    *matrices : list of ndarray
+    matrices : list of ndarray
         Matrices to be placed on the block diagonal.
 
     Returns:
@@ -423,7 +451,7 @@ def blkdiag(matrices):
     return y
 
 
-def spm_detrend(x, p=0):
+def _spm_detrend(x, p=0):
     """
     Polynomial detrending over columns.
 
@@ -460,7 +488,7 @@ def spm_detrend(x, p=0):
     return y
 
 
-def spm_orth(X, OPT='pad'):
+def _spm_orth(X, OPT='pad'):
     """
     Recursive Gram-Schmidt orthogonalisation of basis functions
 
@@ -520,7 +548,7 @@ def spm_orth(X, OPT='pad'):
     return X_out
 
 
-def spm_Volterra(U, bf, V=1):
+def _spm_Volterra(U, bf, V=1):
     """
     Generalized convolution of inputs (U) with basis set (bf)
 
