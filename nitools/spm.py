@@ -13,10 +13,11 @@ from __future__ import annotations
 from os.path import normpath, dirname
 import numpy as np
 import nibabel as nb
-# import nitools as nt
+import nitools as nt
 from scipy.io import loadmat
 import pandas as pd
 from scipy.stats import gamma
+from scipy.special import gammaln
 
 
 class SpmGlm:
@@ -43,6 +44,7 @@ class SpmGlm:
             SPM = loadmat(f"{self.path}/SPM.mat", simplify_cells=True)['SPM']
             spm_file_loaded_with_scipyio = True
         except Exception as e:
+            print(e)
             print(
                 f"Error loading SPM.mat file. The file was saved as mat-file version 7.3 (see https://www.mathworks.com/help/matlab/import_export/mat-file-versions.html). Try loading the mat-file with Matlab, and saving it as mat-file version 7.0 intead. Use this command:  ")
             print(f"cp {self.path}/SPM.mat {self.path}/SPM.mat.backup")
@@ -224,7 +226,7 @@ class SpmGlm:
 
         return beta[indx, :], info, data_filt, data_hat, data_adj, residuals
 
-    def spmj_glm_convolve(self):
+    def convolve_glm(self, bf):
         """
         Re-convolves the SPM structure with a new basis function.
 
@@ -237,14 +239,15 @@ class SpmGlm:
             Modified SPM structure.
         """
 
+        self.bf = bf
         Xx = np.array([])
         Xb = np.array([])
-        iCs, iCc, iCb, iN = [], [], [], []
+        # iCs, iCc, iCb, iN = [], [], [], []
 
-        if self.bf.ndim == 2:
-            num_basis = self.bf.shape[1]
-        else:
-            num_basis = 1
+        # if self.bf.ndim == 2:
+        #     num_basis = self.bf.shape[1]
+        # else:
+        #     num_basis = 1
         num_scan = self.nscans
 
         for s in range(len(self.Sess)):
@@ -266,9 +269,12 @@ class SpmGlm:
                 X[:, Fc[i]["i"][0] - 1] = spm_orth(X[:, Fc[i]["i"][0] - 1])
 
             # Get user-specified regressors
-            C = SPM["Sess"][s]["C"]["C"]
-            num_reg = C.shape[1]
-            X = np.hstack([X, spm_detrend(C)])
+            C = self.Sess[s]["C"]["C"]
+            if C.size > 0:
+                num_reg = C.shape[1]
+                X = np.hstack([X, spm_detrend(C)])
+            else:
+                num_reg = 0
 
             # Store session info
             if Xx.size == 0:
@@ -278,31 +284,32 @@ class SpmGlm:
                 Xx = blkdiag([Xx, X])
                 Xb = blkdiag([Xb, np.ones((k, 1))])
 
-            iCs.extend([s + 1] * (X.shape[1] + num_reg))
-            iCc.extend(np.kron(np.arange(1, num_cond + 1), np.ones(num_basis, dtype=int)).tolist() + [0] * num_reg)
-            iCb.extend(np.kron(np.ones(num_cond, dtype=int), np.arange(1, num_basis + 1)).tolist() + [0] * num_reg)
-            iN.extend([0] * (num_cond * num_basis) + [1] * num_reg)
+            # iCs.extend([s + 1] * (X.shape[1] + num_reg))
+            # iCc.extend(np.kron(np.arange(1, num_cond + 1), np.ones(num_basis, dtype=int)).tolist() + [0] * num_reg)
+            # iCb.extend(np.kron(np.ones(num_cond, dtype=int), np.arange(1, num_basis + 1)).tolist() + [0] * num_reg)
+            # iN.extend([0] * (num_cond * num_basis) + [1] * num_reg)
 
         # Finalize design matrix
         self.X = np.hstack([Xx, Xb])
 
-        if "W" in SPM["xX"]:
-            SPM["xX"]["xKXs"] = spm_sp("Set", self.spm_filter(self.weight @ SPM["xX"]["X"]))
+        # Compute weighted and filtered design matrix
+        if hasattr(self, "weight"):
+            self.design_matrix = self.spm_filter(self.weight @ self.X)
         else:
-            SPM["xX"]["xKXs"] = spm_sp("Set", self.spm_filter(SPM["xX"]["X"]))
+            self.design_matrix = self.spm_filter(self.X)
 
-        SPM["xX"]["xKXs"]["X"] = SPM["xX"]["xKXs"]["X"].astype(float)
-        SPM["xX"]["pKX"] = spm_sp("x-", SPM["xX"]["xKXs"])
+        self.design_matrix = self.design_matrix.astype(float)
 
-        # Indices for regressors
-        SPM["xX"]["iC"] = list(range(Xx.shape[1]))
-        SPM["xX"]["iB"] = list(range(Xb.shape[1])) + Xx.shape[1]
-        SPM["xX"]["iCs"] = iCs + list(range(1, num_scan + 1))
-        SPM["xX"]["iCc"] = iCc + [0] * num_scan
-        SPM["xX"]["iCb"] = iCb + [0] * num_scan
-        SPM["xX"]["iN"] = iN + [2] * num_scan
+        # Compute pseudoinverse of weighted and filtered design matrix
+        self.pinvX = np.linalg.inv(self.design_matrix.T @ self.design_matrix) @ self.design_matrix.T
 
-        return SPM
+        # # Indices for regressors
+        # SPM["xX"]["iC"] = list(range(Xx.shape[1]))
+        # SPM["xX"]["iB"] = list(range(Xb.shape[1])) + Xx.shape[1]
+        # SPM["xX"]["iCs"] = iCs + list(range(1, num_scan + 1))
+        # SPM["xX"]["iCc"] = iCc + [0] * num_scan
+        # SPM["xX"]["iCb"] = iCb + [0] * num_scan
+        # SPM["xX"]["iN"] = iN + [2] * num_scan
 
 
 def cut(X, pre, at, post, padding='last'):
@@ -380,12 +387,10 @@ def avg_cut(X, pre, at, post, padding='last'):
     for a in at:
         y_tmp.append(cut(X, pre, a, post, padding))
 
-    y = np.array(y_tmp).mean(axis=0)
-
-    return y
+    return np.array(y_tmp)
 
 
-def blkdiag(*matrices):
+def blkdiag(matrices):
     """
     Constructs a block diagonal matrix from multiple input matrices.
 
@@ -400,12 +405,9 @@ def blkdiag(*matrices):
     if len(matrices) == 0:
         return np.array([])
 
-    # Ensure all inputs are 2D arrays
-    matrices = [np.atleast_2d(m) for m in matrices]
-
     # Determine final shape
-    rows = sum(m.shape[0] for m in matrices)
-    cols = sum(m.shape[1] for m in matrices)
+    rows = np.array([m.shape[0] for m in matrices]).sum()
+    cols = np.array([m.shape[1] for m in matrices]).sum()
 
     # Preallocate result matrix with zeros
     y = np.zeros((rows, cols), dtype=matrices[0].dtype)
@@ -476,6 +478,8 @@ def spm_orth(X, OPT='pad'):
     # Turn off warnings (equivalent to MATLAB warning('off','all'))
     np.seterr(all='ignore')
 
+    if X.ndim==1:
+        X = X[:, np.newaxis]
     n, m = X.shape
     X = X[:, np.any(X, axis=0)]  # Remove zero columns
     rankX = np.linalg.matrix_rank(X)
@@ -509,6 +513,9 @@ def spm_orth(X, OPT='pad'):
         X_out = x / np.linalg.norm(x, axis=0, keepdims=True)
     else:
         X_out = x
+
+    # drop extra dimensions if input was a vector
+    X_out = np.squeeze(X_out)
 
     return X_out
 
@@ -555,7 +562,9 @@ def spm_Volterra(U, bf, V=1):
                 else:
                     x = u_dict['u'].todense()[:, k]
                     d = np.arange(x.shape[0])
+                    x = np.asarray(x).flatten()
                     x = np.convolve(x, bf, mode='full')[:len(d)]
+                    x = x[:, None]
                 X.append(x)
 
                 Xname.append(f"{u_dict['name'][k]}*bf({p + 1})")
@@ -598,7 +607,7 @@ def spm_hrf(RT, P=None, T=16):
 
     Parameters:
     RT : float
-        Scan repeat time (TR)
+        Scan repeat time in seconds (TR)
     P : list or ndarray, optional
         Parameters of the response function (two Gamma functions), defaults to [6, 16, 1, 1, 6, 0, 32]
     T : int, optional
@@ -619,22 +628,22 @@ def spm_hrf(RT, P=None, T=16):
     p[:len(P)] = P
 
     # Microtime resolution
+    RT = RT / T
     dt = RT / T
-    u = np.arange(0, np.ceil(p[6] / dt) + 1) - p[5] / dt
+    t = np.linspace(0, p[6], np.ceil(1 + p[6] / dt).astype(int)) - p[5]
 
-    # Modelled hemodynamic response function (mixture of two gamma distributions)
-    hrf = (gamma.pdf(u, p[0] / p[2], scale=dt / p[2]) -
-           gamma.pdf(u, p[1] / p[3], scale=dt / p[3]) / p[4])
+    peak = (t ** p[0]) * np.exp(-t / p[2])
+    peak /= np.max(peak)  # Normalize
+
+    undershoot = (t ** p[1]) * np.exp(-t / p[3])
+    undershoot /= np.max(undershoot)  # Normalize
+
+    hrf = peak - (undershoot / p[4])
 
     # Downsample to TR resolution
-    hrf = hrf[np.floor(np.arange(0, p[6] / RT + 1) * T).astype(int)]
+    hrf = hrf[np.floor(np.arange(0, p[6] / RT) * T).astype(int)]
 
     # Normalize HRF
     hrf = hrf / np.sum(hrf)
 
     return hrf, p
-
-
-SPM = SpmGlm('/Volumes/diedrichsen_data$/data/SensoriMotorPrediction/smp2/glm12/subj103/')
-SPM.get_info_from_spm_mat()
-SPM.spmj_glm_convolve()
