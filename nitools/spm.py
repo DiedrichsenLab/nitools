@@ -329,18 +329,18 @@ class SpmGlm:
             raise TypeError("mask_img must be a nifti1 image or a string")
 
         hrf, p = spm_hrf(1, P)
-        SPM.convolve_glm(hrf)
+        self.convolve_glm(hrf)
 
         # get raw time series in roi
-        y_raw = nt.sample_images(self.rawdata_files, coords)
+        data = nt.sample_images(self.rawdata_files, coords)
 
         # rerun glm
-        _, info, data_filt, data_hat, data_adj, residuals = self.rerun_glm(y_raw)
+        _, info, data_filt, data_hat, data_adj, residuals = self.rerun_glm(data)
 
         return data_filt, data_hat, data_adj, residuals
 
 
-def cut(X, pre, at, post, padding='last'):
+def _cut(X, pre, at, post, padding='last'):
     """
     Cut segment from signal X.
 
@@ -381,7 +381,7 @@ def cut(X, pre, at, post, padding='last'):
     return y
 
 
-def avg_cut(X, pre, at, post, padding='last'):
+def cut(X, pre, at, post, padding='last'):
     """
     Takes a vector of sample locations (at) and returns the signal (X) aligned and averaged around those locations
     Args:
@@ -413,7 +413,7 @@ def avg_cut(X, pre, at, post, padding='last'):
 
     y_tmp = []
     for a in at:
-        y_tmp.append(cut(X, pre, a, post, padding))
+        y_tmp.append(_cut(X, pre, a, post, padding))
 
     return np.array(y_tmp)
 
@@ -669,7 +669,9 @@ def spm_hrf(RT, P=None, T=16):
     hrf = peak - (undershoot / p[4])
 
     # Downsample to TR resolution
-    hrf = hrf[np.floor(np.arange(0, p[6] / RT) * T).astype(int)]
+    n_samples = int(p[6] / RT) + 1
+    indices = np.round(np.linspace(0, T * n_samples, n_samples, endpoint=False)).astype(int)
+    hrf = hrf[indices]
 
     # Normalize HRF
     hrf = hrf / np.sum(hrf)
