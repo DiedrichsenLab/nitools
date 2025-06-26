@@ -4,6 +4,8 @@ import numpy as np
 import nibabel as nb
 import matplotlib.pyplot as plt
 import nitools as nt
+import os 
+import subprocess
 
 def make_label_cifti(data, bm_axis,
                        labels=None,
@@ -304,6 +306,7 @@ def smooth_cifti(cifti_input,
                  surface_sigma = 2.0,
                  volume_sigma = 0.0,
                  direction = "COLUMN",
+                 ignore_zeros = True
                  ):
     """
     smoothes a cifti file on the direction specified by "direction"
@@ -329,7 +332,11 @@ def smooth_cifti(cifti_input,
 
     # make up the command
     # overwrite the temp file created
-    smooth_cmd = f"wb_command -cifti-smoothing 'temp.dscalar.nii' {surface_sigma} {volume_sigma} {direction} {cifti_output} -left-surface {left_surface} -right-surface {right_surface} -fix-zeros-surface"
+    smooth_cmd = f"wb_command -cifti-smoothing 'temp.dscalar.nii' {surface_sigma} {volume_sigma} {direction} {cifti_output} -left-surface {left_surface} -right-surface {right_surface}"
+    if ignore_zeros:
+        smooth_cmd += " -fix-zeros-surface"
+
+    print(smooth_cmd)
     subprocess.run(smooth_cmd, shell=True)
 
     # remove the temp file
