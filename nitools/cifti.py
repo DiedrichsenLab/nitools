@@ -243,14 +243,13 @@ def volume_from_cifti(cifti, struct_names=None):
         vol = np.zeros(bmf.volume_shape + (d_array.shape[0],))
         for idx, (nam,slc,bm) in enumerate(bmf.iter_structures()):
 
-            if (any(s in nam for s in struct_names)):
+            if (nam in struct_names):
                 ijk = bm.voxel
                 bm_data = d_array[:, slc]
                 i  = (ijk[:,0] > -1)
 
                 # fill in data
                 vol[ijk[i, 0], ijk[i, 1], ijk[i, 2], :]=bm_data[:,i].T
-
         # save as nii
         nii_vol_4d = nb.Nifti1Image(vol,bmf.affine)
         return nii_vol_4d
