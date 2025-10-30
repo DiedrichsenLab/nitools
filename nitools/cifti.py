@@ -18,7 +18,7 @@ def make_label_cifti(data, bm_axis,
         data (np.array):
             num_vert x num_col data
         bm_axis:
-            The corresponding brain model axis (voxels or vertices)
+            The corresponding brain model axis (voxels or vertices) or parcel axis
         labels (list): Numerical values in data indicating the labels -
             defaults to np.unique(data)
         label_names (list):
