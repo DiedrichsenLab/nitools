@@ -161,10 +161,11 @@ def euclidean_dist_sq(coordA,coordB):
     D = np.sum(D**2,axis=0)
     return D
 
-def sample_image(img,xm,ym,zm,interpolation):
+def sample_image(img,xm,ym,zm,interpolation,extrapolate=True):
     """
     Return values after resample image
-    ignores NaN values
+    ignores NaN values in linear interpolation
+    Extrapolates image if the voxel value is not in the range
 
     Args:
         img (Nifti image):
@@ -178,6 +179,8 @@ def sample_image(img,xm,ym,zm,interpolation):
         interpolation (int):
             0: Nearest neighbor
             1: Trilinear interpolation
+        extrapolate (bool):
+            extrapolate from the border of the image if set to true
     Returns:
         value (np-array):
             Array contains all values in the image
@@ -189,10 +192,11 @@ def sample_image(img,xm,ym,zm,interpolation):
         jr = np.floor(jm).astype('int')
         kr = np.floor(km).astype('int')
 
+        # Find out of range voxels
         invalid = np.logical_not((im>=0) & (im<img.shape[0]-1) & (jm>=0) & (jm<img.shape[1]-1) & (km>=0) & (km<img.shape[2]-1))
-        ir[invalid] = 0
-        jr[invalid] = 0
-        kr[invalid] = 0
+        ir = np.clip(ir,0,img.shape[0]-2)
+        jr = np.clip(jr,0,img.shape[1]-2)
+        kr = np.clip(kr,0,img.shape[2]-2)
 
         id = im - ir
         jd = jm - jr
@@ -232,16 +236,17 @@ def sample_image(img,xm,ym,zm,interpolation):
         kr = np.rint(km).astype('int')
 
         invalid = check_voxel_range(img, ir, jr, kr)
-        ir[invalid] = 0
-        jr[invalid] = 0
-        kr[invalid] = 0
+        ir = np.clip(ir,0,img.shape[0]-1)
+        jr = np.clip(jr,0,img.shape[1]-1)
+        kr = np.clip(kr,0,img.shape[2]-1)
         value = img.get_fdata()[ir, jr, kr]
 
     # Kill the invalid elements
-    if value.dtype==np.dtype('float'):
-        value[invalid]=np.nan
-    else:
-        value[invalid]=0
+    if not extrapolate:
+        if value.dtype==np.dtype('float'):
+            value[invalid]=np.nan
+        else:
+            value[invalid]=0
     return value
 
 def nan_weighted_mean(d1,d2,weight):
