@@ -226,7 +226,7 @@ def sample_image(img,xm,ym,zm,interpolation):
         c0 = nan_weighted_mean(c10,c00,jd)
         c1 = nan_weighted_mean(c11,c01,jd)
         value = nan_weighted_mean(c1,c0,kd)
-    elif interpolation == 0:
+    elif interpolation == 0: # Nearest neighbor interpolation 
         ir = np.rint(im).astype('int')
         jr = np.rint(jm).astype('int')
         kr = np.rint(km).astype('int')
