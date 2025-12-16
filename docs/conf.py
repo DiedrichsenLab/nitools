@@ -23,7 +23,7 @@ copyright = '2022, Jörn Diedrichsen'
 author = 'Jörn Diedrichsen'
 
 # The full version, including alpha/beta/rc tags
-release = 'v.1.1.1'
+release = 'v.1.1.5'
 
 
 # -- General configuration ---------------------------------------------------

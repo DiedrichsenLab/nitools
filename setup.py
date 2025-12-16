@@ -6,13 +6,13 @@ with open('README.rst') as fp:
 setup(
     name = 'neuroimagingtools',
     packages = ['nitools'],
-    version = '1.1.4',
+    version = '1.1.5',
     license='MIT',
     description = 'Neuroimaging analysis tools',
     author = 'Jörn Diedrichsen',
     author_email = 'joern.diedrichsen@googlemail.com',
     url = 'https://github.com/DiedrichsenLab/nitools',
-    download_url = 'https://github.com/DiedrichsenLab/nitools/archive/refs/tags/v1.1.4.tar.gz',
+    download_url = 'https://github.com/DiedrichsenLab/nitools/archive/refs/tags/v1.1.5.tar.gz',
     long_description=LONG_DESCRIPTION,
     keywords = ['imaging analysis', 'nifti', 'gifti','cifti'],
     install_requires=[
