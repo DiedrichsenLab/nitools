@@ -4,6 +4,8 @@ import numpy as np
 import nibabel as nb
 import matplotlib.pyplot as plt
 import nitools as nt
+import os 
+import subprocess
 
 def make_label_cifti(data, bm_axis,
                        labels=None,
@@ -16,7 +18,7 @@ def make_label_cifti(data, bm_axis,
         data (np.array):
             num_vert x num_col data
         bm_axis:
-            The corresponding brain model axis (voxels or vertices)
+            The corresponding brain model axis (voxels or vertices) or parcel axis
         labels (list): Numerical values in data indicating the labels -
             defaults to np.unique(data)
         label_names (list):
@@ -26,7 +28,7 @@ def make_label_cifti(data, bm_axis,
         label_RGBA (list):
             List of rgba vectors for labels
     Returns:
-        cifti (GiftiImage): Label gifti image 
+        cifti (GiftiImage): Label gifti image
     """
     if data.ndim == 1:
         # reshape to (1, num_vertices)
@@ -213,7 +215,7 @@ def split_cifti_to_giftis(cifti_img, type = "label", column_names = None):
                                         ))
     return gii
 
-def volume_from_cifti(cifti, struct_names=[]):
+def volume_from_cifti(cifti, struct_names=None):
         """ Gets the 4D nifti object containing the data
         for all subcortical (volume-based) structures
 
@@ -222,7 +224,7 @@ def volume_from_cifti(cifti, struct_names=[]):
                 cifti object containing the data
             struct_names (list or None):
                 List of structure names that are included
-                defaults to None
+                defaults to None (all)
         Returns:
             nii_vol(niftiImage):
                 nifti object containing the data
@@ -232,20 +234,22 @@ def volume_from_cifti(cifti, struct_names=[]):
         # get the data array with all the time points, all the structures
         d_array = cifti.get_fdata(dtype=np.float32)
 
-        struct_names = [nb.cifti2.BrainModelAxis.to_cifti_brain_structure_name(n) for n in struct_names]
+        if struct_names is None:
+            struct_names = [a for a,_,_ in bmf.iter_structures()]
+        else:
+            struct_names = [nb.cifti2.BrainModelAxis.to_cifti_brain_structure_name(n) for n in struct_names]
 
         # initialize a matrix representing 4D data (x, y, z, time_point)
         vol = np.zeros(bmf.volume_shape + (d_array.shape[0],))
         for idx, (nam,slc,bm) in enumerate(bmf.iter_structures()):
 
-            if (any(s in nam for s in struct_names)):
+            if (nam in struct_names):
                 ijk = bm.voxel
                 bm_data = d_array[:, slc]
                 i  = (ijk[:,0] > -1)
 
                 # fill in data
                 vol[ijk[i, 0], ijk[i, 1], ijk[i, 2], :]=bm_data[:,i].T
-
         # save as nii
         nii_vol_4d = nb.Nifti1Image(vol,bmf.affine)
         return nii_vol_4d
@@ -301,6 +305,7 @@ def smooth_cifti(cifti_input,
                  surface_sigma = 2.0,
                  volume_sigma = 0.0,
                  direction = "COLUMN",
+                 ignore_zeros = True
                  ):
     """
     smoothes a cifti file on the direction specified by "direction"
@@ -326,7 +331,11 @@ def smooth_cifti(cifti_input,
 
     # make up the command
     # overwrite the temp file created
-    smooth_cmd = f"wb_command -cifti-smoothing 'temp.dscalar.nii' {surface_sigma} {volume_sigma} {direction} {cifti_output} -left-surface {left_surface} -right-surface {right_surface} -fix-zeros-surface"
+    smooth_cmd = f"wb_command -cifti-smoothing 'temp.dscalar.nii' {surface_sigma} {volume_sigma} {direction} {cifti_output} -left-surface {left_surface} -right-surface {right_surface}"
+    if ignore_zeros:
+        smooth_cmd += " -fix-zeros-surface"
+
+    print(smooth_cmd)
     subprocess.run(smooth_cmd, shell=True)
 
     # remove the temp file

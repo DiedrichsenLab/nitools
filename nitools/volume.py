@@ -161,9 +161,11 @@ def euclidean_dist_sq(coordA,coordB):
     D = np.sum(D**2,axis=0)
     return D
 
-def sample_image(img,xm,ym,zm,interpolation):
+def sample_image(img,xm,ym,zm,interpolation,extrapolate=True):
     """
     Return values after resample image
+    ignores NaN values in linear interpolation
+    Extrapolates image if the voxel value is not in the range
 
     Args:
         img (Nifti image):
@@ -177,6 +179,8 @@ def sample_image(img,xm,ym,zm,interpolation):
         interpolation (int):
             0: Nearest neighbor
             1: Trilinear interpolation
+        extrapolate (bool):
+            extrapolate from the border of the image if set to true
     Returns:
         value (np-array):
             Array contains all values in the image
@@ -188,10 +192,11 @@ def sample_image(img,xm,ym,zm,interpolation):
         jr = np.floor(jm).astype('int')
         kr = np.floor(km).astype('int')
 
+        # Find out of range voxels
         invalid = np.logical_not((im>=0) & (im<img.shape[0]-1) & (jm>=0) & (jm<img.shape[1]-1) & (km>=0) & (km<img.shape[2]-1))
-        ir[invalid] = 0
-        jr[invalid] = 0
-        kr[invalid] = 0
+        ir = np.clip(ir,0,img.shape[0]-2)
+        jr = np.clip(jr,0,img.shape[1]-2)
+        kr = np.clip(kr,0,img.shape[2]-2)
 
         id = im - ir
         jd = jm - jr
@@ -218,32 +223,43 @@ def sample_image(img,xm,ym,zm,interpolation):
         c011 = D[ir, jr+1, kr+1]
         c001 = D[ir, jr, kr+1]
 
-        c00 = c000*(1-id)+c100*id
-        c01 = c001*(1-id)+c101*id
-        c10 = c010*(1-id)+c110*id
-        c11 = c011*(1-id)+c111*id
-
-        c0 = c00*(1-jd)+c10*jd
-        c1 = c01*(1-jd)+c11*jd
-
-        value = c0*(1-kd)+c1*kd
-    elif interpolation == 0:
+        c00 = nan_weighted_mean(c100,c000,id)
+        c01 = nan_weighted_mean(c101,c001,id)
+        c10 = nan_weighted_mean(c110,c010,id)
+        c11 = nan_weighted_mean(c111,c011,id)
+        c0 = nan_weighted_mean(c10,c00,jd)
+        c1 = nan_weighted_mean(c11,c01,jd)
+        value = nan_weighted_mean(c1,c0,kd)
+    elif interpolation == 0: # Nearest neighbor interpolation 
         ir = np.rint(im).astype('int')
         jr = np.rint(jm).astype('int')
         kr = np.rint(km).astype('int')
 
         invalid = check_voxel_range(img, ir, jr, kr)
-        ir[invalid] = 0
-        jr[invalid] = 0
-        kr[invalid] = 0
+        ir = np.clip(ir,0,img.shape[0]-1)
+        jr = np.clip(jr,0,img.shape[1]-1)
+        kr = np.clip(kr,0,img.shape[2]-1)
         value = img.get_fdata()[ir, jr, kr]
 
     # Kill the invalid elements
-    if value.dtype==np.dtype('float'):
-        value[invalid]=np.nan
-    else:
-        value[invalid]=0
+    if not extrapolate:
+        if value.dtype==np.dtype('float'):
+            value[invalid]=np.nan
+        else:
+            value[invalid]=0
     return value
+
+def nan_weighted_mean(d1,d2,weight):
+    j = np.isnan(d1)
+    k = np.isnan(d2)
+    if j.sum()==0 & k.sum()==0:
+        return d1*weight + d2*(1-weight)
+    else:
+        dd1 = d1.copy()
+        dd2 = d2.copy()
+        dd1[j]=dd2[j]
+        dd2[k]=dd1[k]
+        return (dd1*weight + dd2*(1-weight))
 
 def check_voxel_range(img,i,j,k):
     """
@@ -294,17 +310,17 @@ def change_nifti_numformat(infile,
     """Changes the number format of a nifti file and saves it.
 
     Args:
-        infile (str): file name of input file 
-        outfile (str): file name output file 
+        infile (str): file name of input file
+        outfile (str): file name output file
         new_numformat (str): New number format. Defaults to 'uint16'.
-        type_cast_data (bool): If true, typecasts the data as well. 
+        type_cast_data (bool): If true, typecasts the data as well.
     Note:
-        typecast_data changes the data format and can lead to and wrap-around of values, as the data is typecasted as well. 
-        Do only when correcting a previous mistake in processing. 
+        typecast_data changes the data format and can lead to and wrap-around of values, as the data is typecasted as well.
+        Do only when correcting a previous mistake in processing.
     """
     A = nb.load(infile)
     X = A.get_fdata()
-    if typecast_data: 
+    if typecast_data:
         X = X.astype(new_numformat)
     head = A.header.copy()
     head.set_data_dtype(new_numformat)
@@ -314,20 +330,20 @@ def change_nifti_numformat(infile,
 def sample_images(imgs,coords,use_dataobj=True):
     """
     Samples a list of images at a set of voxels (coordinates nearest neighbor)
-    3d images are being returned as a single value per voxel. 4d images are being returned as a vector per voxel. 
-    The function respects ths SPM-convention of specifying time slices 'img.nii,1' 
-    Note that either all or none of the image names need to follow the 'img.nii,1' convention. 
+    3d images are being returned as a single value per voxel. 4d images are being returned as a vector per voxel.
+    The function respects ths SPM-convention of specifying time slices 'img.nii,1'
+    Note that either all or none of the image names need to follow the 'img.nii,1' convention.
     Args:
         imgs (list):
-            List of Nifti file names (SPM convention for time slices is respected) 
+            List of Nifti file names (SPM convention for time slices is respected)
         coords (np-array):
-            3xN matrix of coordinates of to be sampled voxels 
+            3xN matrix of coordinates of to be sampled voxels
     Returns:
         values (np-array):
             Array contains all values in the image
     """
     n = len(imgs)
-    if ',' in imgs[0]: # SPM-convention of indicating time slice with ',x' notation 
+    if ',' in imgs[0]: # SPM-convention of indicating time slice with ',x' notation
         fnames=[f.split(',')[0] for f in imgs]
         slice=np.array([f.split(',')[1] for f in imgs],dtype=int)-1
         unique_fnames,img_indx = np.unique(fnames,return_inverse=True)
@@ -344,7 +360,7 @@ def sample_images(imgs,coords,use_dataobj=True):
                 img_indx.append(np.array([i],dtype=int))
                 slice.append(np.array([0],dtype=int))
         slice = np.concatenate(slice)
-        img_indx = np.concatenate(img_indx) 
+        img_indx = np.concatenate(img_indx)
     N = len(slice)
     # Load the header from all the input files
     voxels = coords_to_voxelidxs(coords,input_vols[0])
@@ -355,7 +371,7 @@ def sample_images(imgs,coords,use_dataobj=True):
             data_block = v.dataobj[min(voxels[0]):max(voxels[0])+1,min(voxels[1]):max(voxels[1])+1,min(voxels[2]):max(voxels[2])+1]
             D = data_block[voxels[0]-min(voxels[0]),voxels[1]-min(voxels[1]),voxels[2]-min(voxels[2])]
             if v.ndim==3:
-                data[dindx,:]=D 
+                data[dindx,:]=D
             else:
                 data[dindx,:]=D[:,slice[dindx]].T
     else:
