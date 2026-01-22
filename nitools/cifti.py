@@ -349,3 +349,44 @@ def smooth_cifti(cifti_input,
     nb.save(C, cifti_output)
 
     return
+
+def join_ciftis(cifti_list):
+    """
+    Joins multiple cifti files into a single cifti file by concatenating along the brain model axis (columns)
+    assumes, that the row axis (e.g., condition names) are the same across all ciftis
+
+    args:
+        cifti_list (list): List of Cifti2Image objects to be joined
+    
+    returns:
+        combined (Cifti2Image): Combined Cifti2Image object
+    """
+
+    if len(cifti_list) == 0:
+        raise ValueError("cifti_list is empty")
+    
+    # check all row axes match (e.g., condition names for task data)
+    row_axis = cifti_list[0].header.get_axis(0) # axis for the first cifti
+
+    # check if other ciftis row axis matches the first
+    for i, C in enumerate(cifti_list[1:],start=1):
+        other_axis = C.header.get_axis(0)
+        if not np.array_equal(row_axis.name, other_axis.name):
+            raise ValueError(f"Row axis of cifti at index {i} does not match the first cifti")
+    
+    # concatenate brain model axes and data arrays
+    combined_bm = cifti_list[0].header.get_axis(1)
+    data_list = [cifti_list[0].get_fdata()]
+
+    # add other brain model axes and data arrays
+    for C in cifti_list[1:]:
+        combined_bm = combined_bm + C.header.get_axis(1)
+        data_list.append(C.get_fdata())
+
+    combined_data = np.concatenate(data_list, axis=1)
+
+    # build combined cifti
+    header = nb.Cifti2Header.from_axes((row_axis, combined_bm))
+    combined_cifti = nb.Cifti2Image(dataobj=combined_data, header=header)
+
+    return combined_cifti
