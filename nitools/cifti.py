@@ -215,6 +215,20 @@ def split_cifti_to_giftis(cifti_img, type = "label", column_names = None):
                                         ))
     return gii
 
+def join_ciftis(ciftis):
+    """ Joins multiple Cifti files into a single Cifti file by concatenating
+    along the column (brain model) axis. Assumes that all Ciftis have the same row axis.
+
+    Args:
+        ciftis (list):
+            List of Cifti2Image objects to be joined
+
+    Returns:
+        cifti_img:
+            Joined Cifti2Image object
+    """
+    pass
+
 def volume_from_cifti(cifti, struct_names=None):
         """ Gets the 4D nifti object containing the data
         for all subcortical (volume-based) structures
