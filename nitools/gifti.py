@@ -33,6 +33,7 @@ def make_func_gifti(
     #
     # Make columnNames if empty
     if column_names is None:
+        column_names = []
         for i in range(num_cols):
             column_names.append("col_{:02d}".format(i+1))
 
