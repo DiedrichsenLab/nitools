@@ -18,6 +18,7 @@ from scipy.io import loadmat
 import pandas as pd
 from scipy.stats import gamma
 from scipy.special import gammaln
+from scipy.linalg import block_diag
 
 
 class SpmGlm:
@@ -41,7 +42,9 @@ class SpmGlm:
         """
         try:
             # SPM = loadmat(f"{self.path}/SPM.mat", simplify_cells=True)['SPM']
-            SPM = loadmat(f"{self.path}/SPM.mat", simplify_cells=True)['SPM']
+            SPM = loadmat(f"{self.path}/SPM.mat", simplify_cells=True)
+            if 'SPM' in SPM:
+                SPM = SPM['SPM']
             spm_file_loaded_with_scipyio = True
         except Exception as e:
             print(e)
@@ -70,16 +73,19 @@ class SpmGlm:
         # Get the necesssary matrices to reestimate the GLM for getting the residuals
         self.filter_matrices = [k['X0'] for k in SPM['xX']['K']]
         self.reg_of_interest = SPM['xX']['iC']
-        self.design_matrix = SPM['xX']['xKXs']['X']  # Filtered and whitened design matrix
+        self.design_matrix = SPM['xX']['xKXs']['X'].astype(float)  # Filtered and whitened design matrix
         self.eff_df = SPM['xX']['erdf']  # Effective degrees of freedom
         self.weight = SPM['xX']['W']  # Weight matrix for whitening
         self.pinvX = SPM['xX']['pKX']  # Pseudo-inverse of (filtered and weighted) design matrix
+        # self.pinvX = np.linalg.pinv(self.design_matrix)
+        self.gSF = SPM['xGX']['gSF'] # global scaling factor
         self.X = SPM["xX"]["X"]
         self.bf = SPM['xBF']['bf']
         self.Volterra = SPM['xBF']['Volterra']
         self.Sess = SPM['Sess']
         self.T = SPM["xBF"]["T"]
         self.T0 = SPM["xBF"]["T0"]
+
 
 
     def relocate_file(self, fpath: str) -> str:
@@ -159,6 +165,8 @@ class SpmGlm:
 
         data = nt.sample_images(self.rawdata_files, coords, use_dataobj=True)
 
+        data = data  * self.gSF[:, None]
+
         # Filter and temporal pre-whiten the data
         fdata = self.spm_filter(self.weight @ data)  # spm_filter
 
@@ -189,6 +197,7 @@ class SpmGlm:
             if self.filter_matrices[i].size > 0:
                 # Only apply with filter matrices are not empty
                 Y = Y - self.filter_matrices[i] @ (self.filter_matrices[i].T @ Y)
+            fdata[scan_bounds[i]:scan_bounds[i + 1], :] = Y
         return fdata
 
     def rerun_glm(self, data):
@@ -226,6 +235,7 @@ class SpmGlm:
 
         return beta[indx, :], info, data_filt, data_hat, data_adj, residuals
 
+
     def convolve_glm(self, bf):
         """
         Re-convolves the SPM structure with a new basis function.
@@ -236,14 +246,9 @@ class SpmGlm:
         """
 
         self.bf = bf
-        Xx = np.array([])
-        Xb = np.array([])
-        # iCs, iCc, iCb, iN = [], [], [], []
+        Xx_blocks = []
+        Xb_blocks = []
 
-        # if self.bf.ndim == 2:
-        #     num_basis = self.bf.shape[1]
-        # else:
-        #     num_basis = 1
         num_scan = self.nscans
 
         for s in range(len(self.Sess)):
@@ -260,30 +265,31 @@ class SpmGlm:
             # Resample regressors at acquisition times (32 bin offset)
             X = X[np.arange(k) * self.T + self.T0 + 32, :]
 
-            # Orthogonalize within trial type
-            for i in range(len(Fc)):
-                X[:, Fc[i]["i"][0] - 1] = _spm_orth(X[:, Fc[i]["i"][0] - 1])
+            # # Orthogonalize within trial type
+            # for i in range(len(Fc)):
+            #     X[:, Fc[i]["i"][0] - 1] = _spm_orth(X[:, Fc[i]["i"][0] - 1])
 
             # Get user-specified regressors
             C = self.Sess[s]["C"]["C"]
             if C.size > 0:
-                num_reg = C.shape[1]
+                #num_reg = C.shape[1]
                 X = np.hstack([X, _spm_detrend(C)])
-            else:
-                num_reg = 0
+            #else:
+                #num_reg = 0
 
-            # Store session info
-            if Xx.size == 0:
-                Xx = X
-                Xb = np.ones((k, 1))
-            else:
-                Xx = _blkdiag([Xx, X])
-                Xb = _blkdiag([Xb, np.ones((k, 1))])
+            # # Store session info
+            # if Xx.size == 0:
+            #     Xx = X
+            #     Xb = np.ones((k, 1))
+            # else:
+            #     Xx = _blkdiag([Xx, X])
+            #     Xb = _blkdiag([Xb, np.ones((k, 1))])
+        
+            Xx_blocks.append(X)
+            Xb_blocks.append(np.ones((k, 1), dtype=X.dtype))
 
-            # iCs.extend([s + 1] * (X.shape[1] + num_reg))
-            # iCc.extend(np.kron(np.arange(1, num_cond + 1), np.ones(num_basis, dtype=int)).tolist() + [0] * num_reg)
-            # iCb.extend(np.kron(np.ones(num_cond, dtype=int), np.arange(1, num_basis + 1)).tolist() + [0] * num_reg)
-            # iN.extend([0] * (num_cond * num_basis) + [1] * num_reg)
+        Xx = block_diag(*Xx_blocks)
+        Xb = block_diag(*Xb_blocks)
 
         # Finalize design matrix
         self.X = np.hstack([Xx, Xb])
@@ -297,15 +303,8 @@ class SpmGlm:
         self.design_matrix = self.design_matrix.astype(float)
 
         # Compute pseudoinverse of weighted and filtered design matrix
-        self.pinvX = np.linalg.inv(self.design_matrix.T @ self.design_matrix) @ self.design_matrix.T
+        self.pinvX = np.linalg.pinv(self.design_matrix)
 
-        # # Indices for regressors
-        # SPM["xX"]["iC"] = list(range(Xx.shape[1]))
-        # SPM["xX"]["iB"] = list(range(Xb.shape[1])) + Xx.shape[1]
-        # SPM["xX"]["iCs"] = iCs + list(range(1, num_scan + 1))
-        # SPM["xX"]["iCc"] = iCc + [0] * num_scan
-        # SPM["xX"]["iCb"] = iCb + [0] * num_scan
-        # SPM["xX"]["iN"] = iN + [2] * num_scan
 
     def update_hrf_params(self, P, mask_img):
         """
@@ -568,6 +567,18 @@ def _spm_Volterra(U, bf, V=1):
     Fc : list of dict
         Contains indices and names for each input
     """
+
+    def _convolve_boxcar(u, dur, dt):
+        """
+        Convolve a single column of u with a boxcar of the
+        appropriate duration (in microtime bins), matching SPM.
+        """
+        du = int(round(dur / dt))
+        if du > 1:
+            boxcar = np.ones(du) / du
+            u_conv = np.convolve(u_col, boxcar, mode='full')[:n_bins]
+        return u_conv
+
     X = []
     Xname = []
     Fc = []
@@ -579,18 +590,26 @@ def _spm_Volterra(U, bf, V=1):
 
     # First-order terms
     for i, u_dict in enumerate(U):
+        dt = u_dict['dt'] # get microtime resolution
         ind = []
         ip = []
         for k in range(u_dict['u'].shape[1]):
+            dur = u_dict.get('dur', 0) # get boxcar length (if dur=0 then delta)
+            dur_k = dur if np.isscalar(dur) else dur[k]  # handle scalar or array
+            du = int(round(dur_k / dt))
             for p in range(num_basis):
                 if num_basis > 1:
                     x = u_dict['u'].todense()[:, k]
                     d = np.arange(x.shape[0])
+                    if du > 1:
+                        x = np.convolve(x, np.ones(du) / du, mode='full')[:len(d)]
                     x = np.convolve(x, bf[:, p], mode='full')[:len(d)]
                 else:
                     x = u_dict['u'].todense()[:, k]
-                    d = np.arange(x.shape[0])
                     x = np.asarray(x).flatten()
+                    d = np.arange(x.shape[0])
+                    if du > 1:
+                        x = np.convolve(x, np.ones(du) / du, mode='full')[:len(d)]
                     x = np.convolve(x, bf, mode='full')[:len(d)]
                     x = x[:, None]
                 X.append(x)
@@ -647,33 +666,72 @@ def spm_hrf(RT, P=None, T=16):
     p : ndarray
         Parameters of the response function
     """
-    # Default parameters if not provided
-    if P is None:
-        P = [6, 16, 1, 1, 6, 0, 32]
+    p = np.array([6., 16., 1., 1., 6., 0., 32.], dtype=float)
 
-    # Ensure P has the correct length
-    p = np.array([6, 16, 1, 1, 6, 0, 32])
-    p[:len(P)] = P
+    # MATLAB behavior: overwrite first len(P) entries only
+    if P is not None:
+        P = np.asarray(P, dtype=float).ravel()
+        p[:len(P)] = P
 
-    # Microtime resolution
     RT = RT / T
     dt = RT / T
-    t = np.linspace(0, p[6], np.ceil(1 + p[6] / dt).astype(int)) - p[5]
+    u = np.arange(0, int(np.ceil(p[6] / dt)) + 1) - p[5] / dt
+    u = np.maximum(u, np.finfo(float).tiny)
 
-    peak = (t ** p[0]) * np.exp(-t / p[2])
-    peak /= np.max(peak)  # Normalize
+    hrf = _spm_Gpdf(u, p[0] / p[2], dt / p[2]) - _spm_Gpdf(u, p[1] / p[3], dt / p[3]) / p[4]
 
-    undershoot = (t ** p[1]) * np.exp(-t / p[3])
-    undershoot /= np.max(undershoot)  # Normalize
+    # MATLAB: hrf([0:floor(p7/RT)]*T + 1)  -> Python 0-based
+    idx = (np.arange(0, int(np.floor(p[6] / RT)) + 1) * T).astype(int)
+    hrf = hrf[idx]
 
-    hrf = peak - (undershoot / p[4])
-
-    # Downsample to TR resolution
-    n_samples = int(p[6] / RT) + 1
-    indices = np.round(np.linspace(0, T * n_samples, n_samples, endpoint=False)).astype(int)
-    hrf = hrf[indices]
-
-    # Normalize HRF
-    hrf = hrf / np.sum(hrf)
-
+    hrf = hrf / hrf.sum()
     return hrf, p
+
+
+def _spm_Gpdf(x, h, l):
+    """
+    Equivalent of spm_Gpdf in MATLAB: computes the PDF of the Gamma distribution
+    with shape h and scale l for values x.
+
+    Parameters:
+    - x: input values (can be scalar or array)
+    - h: shape parameter (> 0)
+    - l: scale parameter (> 0)
+
+    Returns:
+    - f: Gamma PDF evaluated at x
+    """
+
+    x = np.asarray(x, dtype=np.float64)
+    h = np.asarray(h, dtype=np.float64)
+    l = np.asarray(l, dtype=np.float64)
+
+    # Clamp x to avoid the x==0 singularity when h<1
+    x = np.maximum(x, np.finfo(float).tiny)
+
+    # Broadcast all inputs to same shape
+    x, h, l = np.broadcast_arrays(x, h, l)
+
+    f = np.zeros_like(x)
+
+    # Invalid values: h <= 0 or l <= 0
+    valid = (h > 0) & (l > 0)
+    invalid = ~valid
+    f[invalid] = np.nan
+
+    # # Degenerate cases at x == 0
+    # zero_x = (x == 0) & valid
+    # f[zero_x & (h < 1)] = np.inf
+    # f[zero_x & (h == 1)] = l[zero_x & (h == 1)]
+    # f[zero_x & (h > 1)] = 0
+
+    # Compute for x > 0
+    pos = (x > 0) & valid
+    f[pos] = np.exp(
+        (h[pos] - 1) * np.log(x[pos]) +
+        h[pos] * np.log(l[pos]) -
+        l[pos] * x[pos] -
+        gammaln(h[pos])
+    )
+
+    return f

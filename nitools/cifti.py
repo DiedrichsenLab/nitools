@@ -4,6 +4,8 @@ import numpy as np
 import nibabel as nb
 import matplotlib.pyplot as plt
 import nitools as nt
+import subprocess
+import os
 
 def make_label_cifti(data, bm_axis,
                        labels=None,
@@ -329,7 +331,7 @@ def smooth_cifti(cifti_input,
     # make up the command
     # overwrite the temp file created
     smooth_cmd = f"wb_command -cifti-smoothing 'temp.dscalar.nii' {surface_sigma} {volume_sigma} {direction} {cifti_output} -left-surface {left_surface} -right-surface {right_surface} -fix-zeros-surface"
-    subprocess.run(smooth_cmd, shell=True)
+    subprocess.run(smooth_cmd, shell=True, capture_output=True)
 
     # remove the temp file
     os.remove("temp.dscalar.nii")
